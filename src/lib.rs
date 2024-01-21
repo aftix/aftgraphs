@@ -4,6 +4,16 @@ pub mod display;
 pub mod headless;
 pub mod primitives;
 
+#[cfg(not(target_family = "wasm"))]
+pub fn init_platform() {
+    env_logger::init();
+}
+
+#[cfg(target_family = "wasm")]
+pub fn init_platform() {
+    console_log::init().expect("Failed to initialize console_log");
+}
+
 #[derive(Debug)]
 pub struct Renderer {
     pub instance: wgpu::Instance,

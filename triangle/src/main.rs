@@ -42,11 +42,13 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
 }
 
 fn main() {
+    aftgraphs::init_platform();
+
     let event_loop: EventLoop<()> = EventLoopBuilder::default()
         .build()
         .expect("failed to build event loop");
 
     let window = Window::new(&event_loop).unwrap();
-    env_logger::init();
+
     pollster::block_on(run(event_loop, window));
 }

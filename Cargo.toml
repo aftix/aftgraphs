@@ -1,3 +1,4 @@
+workspace = { members = ["aftgraphs_macros", "triangle"] }
 [package]
 name = "aftgraphs"
 version = "0.1.0"
@@ -7,13 +8,16 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0.79"
-clap = "4.4"
-env_logger = "0.10.1"
 futures-intrusive = "0.5.0"
 pollster = "0.3.0"
-rav1e = "0.7"
 wgpu = { version="0.18", features=["webgl", "spirv"] }
 winit = { version="0.29", features=["rwh_05"] }
 
-[[bin]]
-name = "triangle"
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
+clap = "4.4"
+env_logger = "0.10.1"
+rav1e = "0.7"
+
+[target.'cfg(target_family = "wasm")'.dependencies]
+console_log = { version="0.2", features=["color"] }
+wasm-bindgen = "0.2"
