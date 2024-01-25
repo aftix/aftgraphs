@@ -1,18 +1,26 @@
-use std::ops::Range;
+use std::{ops::Range, sync::Arc};
+
+use async_mutex::Mutex;
+use winit::{
+    event::{Event, WindowEvent},
+    event_loop::EventLoop,
+    window::Window,
+};
 
 pub mod display;
 pub mod headless;
 pub mod primitives;
 
-#[cfg(not(target_family = "wasm"))]
-pub fn init_platform() {
-    env_logger::init();
-}
+#[cfg(not(target_arch = "wasm32"))]
+mod linux;
+#[cfg(target_arch = "wasm32")]
+mod wasm;
 
-#[cfg(target_family = "wasm")]
-pub fn init_platform() {
-    console_log::init().expect("Failed to initialize console_log");
-}
+#[cfg(target_arch = "wasm32")]
+pub use wasm::*;
+
+#[cfg(not(target_arch = "wasm32"))]
+pub use linux::*;
 
 #[derive(Debug)]
 pub struct Renderer {
@@ -147,4 +155,47 @@ impl Renderer {
                 .await;
         }
     }
+}
+
+pub async fn run(event_loop: EventLoop<()>, window: Window, shader: &str) {
+    let renderer = Arc::new(Mutex::new(display::init(&window, shader).await.unwrap()));
+
+    event_loop
+        .run(move |event, win_target| match event {
+            Event::WindowEvent {
+                event: WindowEvent::Resized(size),
+                ..
+            } => {
+                let renderer = renderer.clone();
+                block_on(async move {
+                    let mut renderer = renderer.lock().await;
+                    renderer.config.as_mut().unwrap().width = size.width;
+                    renderer.config.as_mut().unwrap().height = size.height;
+                    renderer
+                        .surface
+                        .as_ref()
+                        .unwrap()
+                        .configure(&renderer.device, renderer.config.as_ref().unwrap());
+                });
+                //window.request_redraw();
+            }
+            Event::WindowEvent {
+                event: WindowEvent::RedrawRequested,
+                ..
+            } => {
+                let renderer = renderer.clone();
+                block_on(async move {
+                    let renderer = renderer.lock().await;
+                    renderer.render(0..3, 0..1, None).await;
+                });
+            }
+            Event::WindowEvent {
+                event: WindowEvent::CloseRequested,
+                ..
+            } => {
+                win_target.exit();
+            }
+            _ => (),
+        })
+        .unwrap();
 }
