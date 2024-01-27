@@ -2,6 +2,7 @@ use async_mutex::Mutex;
 use std::{marker::PhantomData, sync::Arc};
 use winit::{event_loop::EventLoop, window::Window};
 
+use super::Simulation;
 use crate::render::Renderer;
 
 mod sealed {
@@ -16,12 +17,13 @@ pub trait BuilderState: sealed::Sealed {
     type AddShader: sealed::Sealed;
 }
 
-pub struct SimulationBuilder<'a, S: BuilderState> {
+pub struct SimulationBuilder<'a, T: Simulation, S: BuilderState> {
     event_loop: Option<EventLoop<()>>,
     window: Option<Window>,
     shader: Option<&'a str>,
     renderer: Option<Arc<Mutex<Renderer>>>,
     headless: bool,
+    simulation: T,
     state: PhantomData<S>,
 }
 
@@ -54,9 +56,10 @@ impl<T: sealed::Sealed> BuilderState for T {
     type AddShader = T::AddShader;
 }
 
-impl<'a> SimulationBuilder<'a, BuilderInit> {
-    pub fn new() -> Self {
+impl<'a, T: Simulation> SimulationBuilder<'a, T, BuilderInit> {
+    pub fn new(simulation: T) -> Self {
         Self {
+            simulation,
             event_loop: None,
             window: None,
             shader: None,
@@ -67,8 +70,8 @@ impl<'a> SimulationBuilder<'a, BuilderInit> {
     }
 }
 
-impl<'a> SimulationBuilder<'a, BuilderComplete> {
-    pub async fn build(self) -> super::SimulationContext {
+impl<'a, T: Simulation> SimulationBuilder<'a, T, BuilderComplete> {
+    pub async fn build(self) -> super::SimulationContext<T> {
         let shader = unsafe { self.shader.unwrap_unchecked() };
         let (window, renderer) = if self.headless {
             let renderer = crate::headless::init((1000, 1000), shader)
@@ -87,6 +90,7 @@ impl<'a> SimulationBuilder<'a, BuilderComplete> {
 
         unsafe {
             super::SimulationContext {
+                simulation: self.simulation,
                 event_loop: self.event_loop.unwrap_unchecked(),
                 renderer: Arc::new(Mutex::new(renderer)),
                 window,
@@ -95,13 +99,14 @@ impl<'a> SimulationBuilder<'a, BuilderComplete> {
     }
 }
 
-impl<'a, S: BuilderState> SimulationBuilder<'a, S> {
+impl<'a, T: Simulation, S: BuilderState> SimulationBuilder<'a, T, S> {
     pub fn event_loop(
         self,
         event_loop: EventLoop<()>,
-    ) -> SimulationBuilder<'a, <S as BuilderState>::AddLoop> {
+    ) -> SimulationBuilder<'a, T, <S as BuilderState>::AddLoop> {
         SimulationBuilder {
             event_loop: Some(event_loop),
+            simulation: self.simulation,
             window: self.window,
             shader: self.shader,
             renderer: self.renderer,
@@ -113,6 +118,7 @@ impl<'a, S: BuilderState> SimulationBuilder<'a, S> {
     pub fn window(self, window: Window) -> Self {
         Self {
             window: Some(window),
+            simulation: self.simulation,
             event_loop: self.event_loop,
             shader: self.shader,
             renderer: self.renderer,
@@ -124,6 +130,7 @@ impl<'a, S: BuilderState> SimulationBuilder<'a, S> {
     pub fn headless(self, headless: bool) -> Self {
         Self {
             headless,
+            simulation: self.simulation,
             window: self.window,
             event_loop: self.event_loop,
             shader: self.shader,
@@ -132,9 +139,13 @@ impl<'a, S: BuilderState> SimulationBuilder<'a, S> {
         }
     }
 
-    pub fn shader(self, shader: &'a str) -> SimulationBuilder<'a, <S as BuilderState>::AddShader> {
+    pub fn shader(
+        self,
+        shader: &'a str,
+    ) -> SimulationBuilder<'a, T, <S as BuilderState>::AddShader> {
         SimulationBuilder {
             shader: Some(shader),
+            simulation: self.simulation,
             window: self.window,
             event_loop: self.event_loop,
             renderer: self.renderer,

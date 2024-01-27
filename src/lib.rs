@@ -6,7 +6,9 @@ pub mod simulation;
 
 pub mod prelude {
     pub use crate::render::Renderer;
-    pub use crate::simulation::SimulationContext;
+    pub use crate::simulation::{Simulation, SimulationContext};
+    pub use async_mutex::Mutex;
+    pub use std::sync::Arc;
 }
 
 #[cfg(not(target_arch = "wasm32"))]

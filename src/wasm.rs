@@ -1,5 +1,6 @@
+use async_mutex::Mutex;
 use core::future::Future;
-
+use std::sync::Arc;
 use winit::{
     dpi::PhysicalSize,
     event_loop::{EventLoop, EventLoopBuilder},
@@ -7,7 +8,7 @@ use winit::{
     window::WindowBuilder,
 };
 
-use crate::simulation::SimulationBuilder;
+use crate::simulation::{Simulation, SimulationBuilder};
 
 fn init_platform() {
     console_log::init().expect("Failed to initialize console_log");
@@ -17,7 +18,7 @@ pub fn block_on<F: Future<Output = ()> + 'static>(fut: F) {
     wasm_bindgen_futures::spawn_local(fut);
 }
 
-pub fn sim_main(shader: &'static str) {
+pub fn sim_main<T: Simulation>(shader: &'static str, simulation: T) {
     init_platform();
 
     let html_window = web_sys::window().expect("no global `window` exists");
@@ -38,13 +39,14 @@ pub fn sim_main(shader: &'static str) {
         .expect("failed to build winit window");
 
     block_on(async move {
-        let context = SimulationBuilder::new()
+        let context = SimulationBuilder::new(simulation)
             .window(window)
             .event_loop(event_loop)
             .shader(shader)
             .build()
             .await;
 
-        context.run().await;
+        let out_img = Arc::new(Mutex::new(vec![]));
+        context.run(out_img).await;
     });
 }

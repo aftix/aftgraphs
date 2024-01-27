@@ -9,19 +9,24 @@ use winit::{
 use crate::block_on;
 use crate::render::Renderer;
 
-pub trait Simulation {}
+pub trait Simulation: 'static {
+    #[allow(async_fn_in_trait)]
+    async fn render(&mut self, renderer: Arc<Mutex<Renderer>>, out_img: Arc<Mutex<Vec<u8>>>);
+}
 
-pub struct SimulationContext {
+pub struct SimulationContext<T: Simulation> {
     event_loop: EventLoop<()>,
     renderer: Arc<Mutex<Renderer>>,
     window: Option<Window>,
+    simulation: T,
 }
 
 mod builder;
 pub use builder::{BuilderState, SimulationBuilder};
 
-impl SimulationContext {
-    pub async fn run(self) {
+impl<T: Simulation> SimulationContext<T> {
+    pub async fn run(self, out_img: Arc<Mutex<Vec<u8>>>) {
+        let simulation = Arc::new(Mutex::new(self.simulation));
         self.event_loop
             .run(move |event, win_target| match event {
                 Event::WindowEvent {
@@ -48,9 +53,10 @@ impl SimulationContext {
                     ..
                 } => {
                     let renderer = self.renderer.clone();
+                    let simulation = simulation.clone();
+                    let out_img = out_img.clone();
                     block_on(async move {
-                        let renderer = renderer.lock().await;
-                        renderer.render(0..3, 0..1, None).await;
+                        simulation.lock().await.render(renderer, out_img).await;
                     });
                 }
                 Event::WindowEvent {

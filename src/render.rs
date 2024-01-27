@@ -1,4 +1,6 @@
+use async_mutex::Mutex;
 use std::ops::Range;
+use std::sync::Arc;
 
 #[derive(Debug)]
 pub struct Renderer {
@@ -125,12 +127,13 @@ impl Renderer {
         &self,
         vertices: Range<u32>,
         indices: Range<u32>,
-        out_img: Option<&mut [u8]>,
+        out_img: Arc<Mutex<Vec<u8>>>,
     ) {
         if !self.headless {
             self.display_render(vertices, indices).await;
         } else {
-            self.headless_render(vertices, indices, out_img.unwrap())
+            let out_img = out_img.clone();
+            self.headless_render(vertices, indices, out_img.lock().await.as_mut_slice())
                 .await;
         }
     }
