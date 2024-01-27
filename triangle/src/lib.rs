@@ -1,4 +1,5 @@
 use aftgraphs::prelude::*;
+use aftgraphs_macros::sim_main;
 
 #[derive(Default, Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 struct TriangleSimulation;
@@ -10,22 +11,4 @@ impl Simulation for TriangleSimulation {
     }
 }
 
-#[cfg(target_arch = "wasm32")]
-use wasm_bindgen::prelude::*;
-
-#[cfg(target_arch = "wasm32")]
-#[wasm_bindgen(js_name = "simMain")]
-pub fn sim_main() {
-    aftgraphs::sim_main(
-        include_str!("../res/triangle.wgsl"),
-        TriangleSimulation::default(),
-    );
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-pub fn sim_main() {
-    aftgraphs::sim_main(
-        include_str!("../res/triangle.wgsl"),
-        TriangleSimulation::default(),
-    );
-}
+sim_main! { "../res/triangle.wgsl", TriangleSimulation }

@@ -1,5 +1,5 @@
 [workspace]
-members = ["triangle"]
+members = [ "aftgraphs-macros","triangle"]
 
 [package]
 name = "aftgraphs"
