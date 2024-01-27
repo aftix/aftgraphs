@@ -12,7 +12,7 @@ edition = "2021"
 anyhow = "1.0.79"
 futures-intrusive = "0.5.0"
 wgpu = { version="0.18", features=["webgl", "spirv"] }
-winit = { version="0.29", features=["rwh_05"] }
+winit = { version="0.29.3", features=["rwh_05", "wayland", "x11"] }
 current_platform = "0.2"
 async-mutex = "1.4.0"
 log = "0.4.20"
@@ -22,6 +22,7 @@ clap = "4.4"
 env_logger = "0.10.1"
 rav1e = "0.7"
 pollster = "0.3.0"
+imgui = "0.11"
 
 [target.'cfg(target_family = "wasm")'.dependencies]
 console_log = { version="0.2", features=["color"] }

@@ -1,9 +1,9 @@
 use std::borrow::Cow;
 
-use crate::Renderer;
+use crate::prelude::Renderer;
 use anyhow::anyhow;
 
-pub async fn init(mut size: (u32, u32), shader_src: &str) -> anyhow::Result<super::Renderer> {
+pub async fn init(mut size: (u32, u32), shader_src: &str) -> anyhow::Result<Renderer> {
     size.0 = size.0.max(1);
     size.1 = size.1.max(1);
 
@@ -93,6 +93,7 @@ pub async fn init(mut size: (u32, u32), shader_src: &str) -> anyhow::Result<supe
     let buffer = device.create_buffer(&buffer_desc);
 
     Ok(Renderer {
+        headless: true,
         instance,
         adapter,
         device,

@@ -1,6 +1,6 @@
 use std::borrow::Cow;
 
-use crate::Renderer;
+use crate::prelude::Renderer;
 use anyhow::anyhow;
 use winit::window::Window;
 
@@ -83,6 +83,7 @@ pub async fn init(window: &Window, shader_src: &str) -> anyhow::Result<Renderer>
     surface.configure(&device, &config);
 
     Ok(Renderer {
+        headless: false,
         instance,
         adapter,
         device,

@@ -7,6 +7,8 @@ use winit::{
     window::WindowBuilder,
 };
 
+use crate::simulation::SimulationBuilder;
+
 fn init_platform() {
     console_log::init().expect("Failed to initialize console_log");
 }
@@ -35,5 +37,14 @@ pub fn sim_main(shader: &'static str) {
         .build(&event_loop)
         .expect("failed to build winit window");
 
-    block_on(crate::run(event_loop, window, shader));
+    block_on(async move {
+        let context = SimulationBuilder::new()
+            .window(window)
+            .event_loop(event_loop)
+            .shader(shader)
+            .build()
+            .await;
+
+        context.run().await;
+    });
 }

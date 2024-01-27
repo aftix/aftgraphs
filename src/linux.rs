@@ -5,6 +5,8 @@ use winit::{
     window::Window,
 };
 
+use crate::simulation::SimulationBuilder;
+
 fn init_platform() {
     env_logger::init();
 }
@@ -22,5 +24,14 @@ pub fn sim_main(shader: &'static str) {
 
     let window = Window::new(&event_loop).unwrap();
 
-    block_on(crate::run(event_loop, window, shader));
+    block_on(async move {
+        let context = SimulationBuilder::new()
+            .window(window)
+            .event_loop(event_loop)
+            .shader(shader)
+            .build()
+            .await;
+
+        context.run().await;
+    });
 }
