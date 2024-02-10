@@ -6,6 +6,7 @@ use winit::{
     window::Window,
 };
 
+use crate::input::Inputs;
 use crate::simulation::{Simulation, SimulationBuilder};
 
 fn init_platform() {
@@ -16,7 +17,7 @@ pub fn block_on<F: Future<Output = ()> + 'static>(fut: F) {
     pollster::block_on(fut);
 }
 
-pub fn sim_main<T: Simulation>(shader: &'static str, simulation: T) {
+pub fn sim_main<T: Simulation>(shader: &'static str, _inputs: Inputs, simulation: T) {
     init_platform();
 
     let event_loop: EventLoop<()> = EventLoopBuilder::default()

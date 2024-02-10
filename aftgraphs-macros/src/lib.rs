@@ -9,24 +9,32 @@ use syn::{
 
 struct SimMain {
     id: Ident,
-    path: String,
+    shader_path: String,
+    inputs_path: String,
 }
 
 impl Parse for SimMain {
     fn parse(input: ParseStream) -> Result<Self> {
         let path: LitStr = input.parse()?;
         let _comma: Comma = input.parse()?;
+        let inputs_path: LitStr = input.parse()?;
+        let _comma: Comma = input.parse()?;
         let id = input.parse()?;
 
         Ok(Self {
             id,
-            path: path.value(),
+            shader_path: path.value(),
+            inputs_path: inputs_path.value(),
         })
     }
 }
 
 fn sim_main_impl(input: TokenStream) -> TokenStream {
-    let SimMain { id, path } = parse2(input).expect("did not encounter Ident");
+    let SimMain {
+        id,
+        shader_path,
+        inputs_path,
+    } = parse2(input).expect("did not encounter Ident");
 
     quote! {
         #[cfg(target_arch = "wasm32")]
@@ -35,16 +43,22 @@ fn sim_main_impl(input: TokenStream) -> TokenStream {
         #[cfg(target_arch = "wasm32")]
         #[wasm_bindgen(js_name = "simMain")]
         pub fn sim_main() {
+            let inputs_src = include_str!(#inputs_path);
+            let inputs = aftgraphs::input::Inputs::new(inputs_src).unwrap();
             aftgraphs::sim_main(
-                include_str!(#path),
+                include_str!(#shader_path),
+                inputs,
                 #id::default(),
             );
         }
 
         #[cfg(not(target_arch = "wasm32"))]
         pub fn sim_main() {
+            let inputs_src = include_str!(#inputs_path);
+            let inputs = aftgraphs::input::Inputs::new(inputs_src).unwrap();
             aftgraphs::sim_main(
-                include_str!(#path),
+                include_str!(#shader_path),
+                inputs,
                 #id::default(),
             );
         }

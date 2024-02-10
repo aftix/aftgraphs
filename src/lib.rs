@@ -1,5 +1,6 @@
 pub mod display;
 pub mod headless;
+pub mod input;
 pub mod primitives;
 pub mod render;
 pub mod simulation;

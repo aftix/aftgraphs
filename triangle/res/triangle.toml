@@ -1,0 +1,8 @@
+[simulation]
+name = "triangle"
+description = "Simple triangle rendering test"
+
+[[block]]
+color = { SLIDER = [0.0, 1.0] }
+rotation = { SLIDER = [0.0, 360.0] }
+mouseInput = "CHECKBOX"

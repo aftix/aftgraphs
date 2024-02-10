@@ -8,6 +8,7 @@ use winit::{
     window::WindowBuilder,
 };
 
+use crate::input::Inputs;
 use crate::simulation::{Simulation, SimulationBuilder};
 
 fn init_platform() {
@@ -18,7 +19,7 @@ pub fn block_on<F: Future<Output = ()> + 'static>(fut: F) {
     wasm_bindgen_futures::spawn_local(fut);
 }
 
-pub fn sim_main<T: Simulation>(shader: &'static str, simulation: T) {
+pub fn sim_main<T: Simulation>(shader: &'static str, _inputs: Inputs, simulation: T) {
     init_platform();
 
     let html_window = web_sys::window().expect("no global `window` exists");

@@ -52,7 +52,7 @@ impl Simulation for $SIMNAME {
   }
 }
 
-sim_main! { \"../res/$NAME.wgsl\", $SIMNAME }
+sim_main! { \"../res/$NAME.wgsl\", $\"../res/$NAME.toml\", SIMNAME }
 "
 
 popd >/dev/null || exit 3

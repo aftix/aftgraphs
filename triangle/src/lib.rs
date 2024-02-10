@@ -11,4 +11,4 @@ impl Simulation for TriangleSimulation {
     }
 }
 
-sim_main! { "../res/triangle.wgsl", TriangleSimulation }
+sim_main! { "../res/triangle.wgsl", "../res/triangle.toml", TriangleSimulation }
