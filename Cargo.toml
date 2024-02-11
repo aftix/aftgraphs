@@ -1,5 +1,6 @@
 [workspace]
-members = [ "aftgraphs-macros","triangle"]
+members = [ "aftgraphs-macros","imgui-wgpu","triangle" ]
+exclude = [ "imgui-rs" ]
 
 [package]
 name = "aftgraphs"
@@ -18,13 +19,22 @@ async-mutex = "1.4.0"
 log = "0.4.20"
 serde = { version="1.0", features=["derive"] }
 toml = "0.8.10"
+copypasta = "0.10.1"
+bytemuck = "1.14.3"
+smallvec = "1.13.1"
 
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
 clap = "4.4"
 env_logger = "0.10.1"
 rav1e = "0.7"
 pollster = "0.3.0"
-imgui = "0.11"
+imgui = { path = "./imgui-rs/imgui" }
+imgui-winit-support = { path = "./imgui-rs/imgui-winit-support" }
+imgui-wgpu = { path = "./imgui-wgpu" }
+
+[target.'cfg(not(target_family = "wasm"))'.dependencies.winit]
+version = "0.29.3"
+features = ["rwh_05", "wayland", "x11"]
 
 [target.'cfg(target_family = "wasm")'.dependencies]
 console_log = { version="0.2", features=["color"] }

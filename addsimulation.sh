@@ -20,6 +20,7 @@ cat >> Cargo.toml <<<'
 aftgraphs = { path = "../" }
 aftgraphs-macros = { path = "../aftgraphs-macros" }
 winit = "0.29.10"
+wgpu = "0.18"
 
 '"[target.'cfg(target_family = \"wasm\")'.dependencies]"'
 wasm-bindgen = "0.2"
@@ -52,7 +53,7 @@ impl Simulation for $SIMNAME {
   }
 }
 
-sim_main! { \"../res/$NAME.wgsl\", $\"../res/$NAME.toml\", SIMNAME }
+sim_main! { \"/res/$NAME.wgsl\", $\"/res/$NAME.toml\", SIMNAME }
 "
 
 popd >/dev/null || exit 3

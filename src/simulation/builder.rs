@@ -1,5 +1,6 @@
 use async_mutex::Mutex;
 use std::{marker::PhantomData, sync::Arc};
+use wgpu::ShaderModuleDescriptor;
 use winit::{event_loop::EventLoop, window::Window};
 
 use super::Simulation;
@@ -19,8 +20,8 @@ pub trait BuilderState: sealed::Sealed {
 
 pub struct SimulationBuilder<'a, T: Simulation, S: BuilderState> {
     event_loop: Option<EventLoop<()>>,
-    window: Option<Window>,
-    shader: Option<&'a str>,
+    window: Arc<Mutex<Option<Window>>>,
+    shader: Option<ShaderModuleDescriptor<'a>>,
     renderer: Option<Arc<Mutex<Renderer>>>,
     headless: bool,
     simulation: T,
@@ -61,7 +62,7 @@ impl<'a, T: Simulation> SimulationBuilder<'a, T, BuilderInit> {
         Self {
             simulation,
             event_loop: None,
-            window: None,
+            window: Arc::new(Mutex::new(None)),
             shader: None,
             renderer: None,
             headless: false,
@@ -77,15 +78,19 @@ impl<'a, T: Simulation> SimulationBuilder<'a, T, BuilderComplete> {
             let renderer = crate::headless::init((1000, 1000), shader)
                 .await
                 .expect("SimulationBuilder::build: Failed to init headless mode");
-            (None, renderer)
+            (self.window, renderer)
         } else {
-            let window = self
-                .window
-                .expect("Display mode requires window set in SimulationBuilder");
-            let renderer = crate::display::init(&window, shader)
-                .await
-                .expect("SimulationBuilder::build: Failed to init display mode");
-            (Some(window), renderer)
+            let renderer = {
+                let window = self.window.lock().await;
+                if let Some(window) = window.as_ref() {
+                    crate::display::init(window, shader)
+                        .await
+                        .expect("SimulationBuilder::build: Failed to init display mode")
+                } else {
+                    panic!("SimulationBuilder::build: Display mode requires window set in SimulationBuilder")
+                }
+            };
+            (self.window, renderer)
         };
 
         unsafe {
@@ -117,7 +122,7 @@ impl<'a, T: Simulation, S: BuilderState> SimulationBuilder<'a, T, S> {
 
     pub fn window(self, window: Window) -> Self {
         Self {
-            window: Some(window),
+            window: Arc::new(Mutex::new(Some(window))),
             simulation: self.simulation,
             event_loop: self.event_loop,
             shader: self.shader,
@@ -141,7 +146,7 @@ impl<'a, T: Simulation, S: BuilderState> SimulationBuilder<'a, T, S> {
 
     pub fn shader(
         self,
-        shader: &'a str,
+        shader: ShaderModuleDescriptor<'a>,
     ) -> SimulationBuilder<'a, T, <S as BuilderState>::AddShader> {
         SimulationBuilder {
             shader: Some(shader),

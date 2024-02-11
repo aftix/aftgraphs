@@ -17,7 +17,11 @@ pub fn block_on<F: Future<Output = ()> + 'static>(fut: F) {
     pollster::block_on(fut);
 }
 
-pub fn sim_main<T: Simulation>(shader: &'static str, _inputs: Inputs, simulation: T) {
+pub fn sim_main<T: Simulation>(
+    shader: wgpu::ShaderModuleDescriptor<'static>,
+    inputs: Inputs,
+    simulation: T,
+) {
     init_platform();
 
     let event_loop: EventLoop<()> = EventLoopBuilder::default()
@@ -35,6 +39,6 @@ pub fn sim_main<T: Simulation>(shader: &'static str, _inputs: Inputs, simulation
             .await;
 
         let out_img = Arc::new(Mutex::new(vec![]));
-        context.run(out_img).await;
+        context.run(inputs, out_img).await;
     });
 }

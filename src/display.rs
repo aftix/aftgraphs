@@ -1,10 +1,11 @@
-use std::borrow::Cow;
-
-use crate::prelude::Renderer;
+use crate::prelude::{Mutex, Renderer, Ui};
 use anyhow::anyhow;
 use winit::window::Window;
 
-pub async fn init(window: &Window, shader_src: &str) -> anyhow::Result<Renderer> {
+pub async fn init(
+    window: &Window,
+    shader: wgpu::ShaderModuleDescriptor<'_>,
+) -> anyhow::Result<Renderer> {
     let mut size = window.inner_size();
     size.width = size.width.max(1);
     size.height = size.height.max(1);
@@ -37,10 +38,7 @@ pub async fn init(window: &Window, shader_src: &str) -> anyhow::Result<Renderer>
         .await
         .map_err(|err| anyhow!("wgpu::Adapter::request_device: {}", err))?;
 
-    let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-        label: None,
-        source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(shader_src)),
-    });
+    let shader = device.create_shader_module(shader);
 
     let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
         label: None,
@@ -82,11 +80,13 @@ pub async fn init(window: &Window, shader_src: &str) -> anyhow::Result<Renderer>
 
     surface.configure(&device, &config);
 
+    let (ui, platform) = Ui::new(window, &device, &queue, swapchain_format);
     Ok(Renderer {
         headless: false,
         instance,
         adapter,
         device,
+        render_pass: Mutex::new(None),
         surface: Some(surface),
         queue,
         shader,
@@ -96,5 +96,7 @@ pub async fn init(window: &Window, shader_src: &str) -> anyhow::Result<Renderer>
         texture: None,
         texture_view: None,
         buffer: None,
+        platform,
+        ui,
     })
 }

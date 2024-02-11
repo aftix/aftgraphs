@@ -19,7 +19,11 @@ pub fn block_on<F: Future<Output = ()> + 'static>(fut: F) {
     wasm_bindgen_futures::spawn_local(fut);
 }
 
-pub fn sim_main<T: Simulation>(shader: &'static str, _inputs: Inputs, simulation: T) {
+pub fn sim_main<T: Simulation>(
+    shader: wgpu::ShaderModuleDescriptor<'static>,
+    inputs: Inputs,
+    simulation: T,
+) {
     init_platform();
 
     let html_window = web_sys::window().expect("no global `window` exists");
@@ -48,6 +52,6 @@ pub fn sim_main<T: Simulation>(shader: &'static str, _inputs: Inputs, simulation
             .await;
 
         let out_img = Arc::new(Mutex::new(vec![]));
-        context.run(out_img).await;
+        context.run(inputs, out_img).await;
     });
 }

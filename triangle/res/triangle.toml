@@ -3,6 +3,8 @@ name = "triangle"
 description = "Simple triangle rendering test"
 
 [[block]]
+_name = "triangle inputs"
+_size = [280.0, 110.0]
 color = { SLIDER = [0.0, 1.0] }
 rotation = { SLIDER = [0.0, 360.0] }
 mouseInput = "CHECKBOX"

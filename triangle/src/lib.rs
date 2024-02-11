@@ -1,14 +1,20 @@
 use aftgraphs::prelude::*;
 use aftgraphs_macros::sim_main;
+use std::collections::HashMap;
 
 #[derive(Default, Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 struct TriangleSimulation;
 
 impl Simulation for TriangleSimulation {
-    async fn render(&mut self, renderer: Arc<Mutex<Renderer>>, out_img: Arc<Mutex<Vec<u8>>>) {
+    async fn render(
+        &mut self,
+        renderer: Arc<Mutex<Renderer>>,
+        _inputs: &HashMap<String, InputValue>,
+        out_img: Arc<Mutex<Vec<u8>>>,
+    ) {
         let renderer = renderer.lock().await;
         renderer.render(0..3, 0..1, out_img).await
     }
 }
 
-sim_main! { "../res/triangle.wgsl", "../res/triangle.toml", TriangleSimulation }
+sim_main! { "/res/triangle.wgsl", "/res/triangle.toml", TriangleSimulation }

@@ -1,9 +1,11 @@
-use std::borrow::Cow;
-
-use crate::prelude::Renderer;
+use crate::prelude::{Mutex, Renderer, Ui};
 use anyhow::anyhow;
+use wgpu::ShaderModuleDescriptor;
 
-pub async fn init(mut size: (u32, u32), shader_src: &str) -> anyhow::Result<Renderer> {
+pub async fn init(
+    mut size: (u32, u32),
+    shader: ShaderModuleDescriptor<'_>,
+) -> anyhow::Result<Renderer> {
     size.0 = size.0.max(1);
     size.1 = size.1.max(1);
 
@@ -30,10 +32,7 @@ pub async fn init(mut size: (u32, u32), shader_src: &str) -> anyhow::Result<Rend
         .await
         .map_err(|err| anyhow!("wgpu::Adapter::request_device: {}", err))?;
 
-    let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-        label: None,
-        source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(shader_src)),
-    });
+    let shader = device.create_shader_module(shader);
 
     let texture_desc = wgpu::TextureDescriptor {
         size: wgpu::Extent3d {
@@ -92,11 +91,13 @@ pub async fn init(mut size: (u32, u32), shader_src: &str) -> anyhow::Result<Rend
 
     let buffer = device.create_buffer(&buffer_desc);
 
+    let (ui, platform) = Ui::new_headless();
     Ok(Renderer {
         headless: true,
         instance,
         adapter,
         device,
+        render_pass: Mutex::new(None),
         surface: None,
         queue,
         shader,
@@ -106,5 +107,7 @@ pub async fn init(mut size: (u32, u32), shader_src: &str) -> anyhow::Result<Rend
         texture: Some(texture),
         texture_view: Some(texture_view),
         buffer: Some(buffer),
+        platform,
+        ui,
     })
 }

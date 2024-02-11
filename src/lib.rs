@@ -4,10 +4,13 @@ pub mod input;
 pub mod primitives;
 pub mod render;
 pub mod simulation;
+pub mod ui;
 
 pub mod prelude {
+    pub use crate::input::{InputState, InputValue};
     pub use crate::render::Renderer;
     pub use crate::simulation::{Simulation, SimulationContext};
+    pub use crate::ui::{Ui, UiFrame};
     pub use async_mutex::Mutex;
     pub use std::sync::Arc;
 }
