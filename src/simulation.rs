@@ -1,5 +1,6 @@
 use async_mutex::Mutex;
 use std::collections::HashMap;
+use std::rc::Rc;
 use std::sync::Arc;
 use std::time::Instant;
 use winit::{
@@ -17,9 +18,9 @@ pub trait Simulation: 'static {
     #[allow(async_fn_in_trait)]
     async fn render(
         &mut self,
-        renderer: Arc<Mutex<Renderer>>,
+        renderer: &Renderer,
+        render_pass: wgpu::RenderPass<'_>,
         inputs: &HashMap<String, InputValue>,
-        out_img: Arc<Mutex<Vec<u8>>>,
     );
 
     fn new(renderer: &Renderer) -> Self;
@@ -27,7 +28,7 @@ pub trait Simulation: 'static {
 
 pub struct SimulationContext<T: Simulation> {
     event_loop: EventLoop<()>,
-    renderer: Arc<Mutex<Renderer>>,
+    renderer: Rc<Mutex<Renderer>>,
     window: Arc<Mutex<Option<Window>>>,
     simulation: T,
 }
@@ -63,7 +64,7 @@ impl<T: Simulation> SimulationContext<T> {
                                 .configure(&renderer.device, renderer.config.as_ref().unwrap());
                         }
 
-                        if let Some(ref win) = window.lock().await.as_ref() {
+                        if let Some(win) = window.lock().await.as_ref() {
                             renderer.handle_event(win, &event);
                             win.request_redraw();
                         }
@@ -127,10 +128,10 @@ impl<T: Simulation> SimulationContext<T> {
                     block_on(async move {
                         {
                             let input_values = input_values.lock().await;
-                            simulation
+                            renderer
                                 .lock()
                                 .await
-                                .render(renderer.clone(), input_values.as_ref(), out_img)
+                                .render(simulation.clone(), input_values.as_ref(), out_img)
                                 .await;
                         }
 

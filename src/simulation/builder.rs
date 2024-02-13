@@ -1,5 +1,5 @@
 use async_mutex::Mutex;
-use std::{marker::PhantomData, sync::Arc};
+use std::{marker::PhantomData, rc::Rc, sync::Arc};
 use winit::{event_loop::EventLoop, window::Window};
 
 use super::Simulation;
@@ -14,7 +14,7 @@ pub trait BuilderState: sealed::Sealed {}
 pub struct SimulationBuilder<T: Simulation, S: BuilderState> {
     event_loop: Option<EventLoop<()>>,
     window: Arc<Mutex<Option<Window>>>,
-    renderer: Option<Arc<Mutex<Renderer>>>,
+    renderer: Option<Rc<Mutex<Renderer>>>,
     headless: bool,
     simulation: PhantomData<T>,
     state: PhantomData<S>,
@@ -28,15 +28,21 @@ impl sealed::Sealed for BuilderComplete {}
 
 impl<T: sealed::Sealed> BuilderState for T {}
 
+impl<T: Simulation> Default for SimulationBuilder<T, BuilderInit> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<T: Simulation> SimulationBuilder<T, BuilderInit> {
     pub fn new() -> Self {
         Self {
-            simulation: PhantomData::default(),
+            simulation: PhantomData,
             event_loop: None,
             window: Arc::new(Mutex::new(None)),
             renderer: None,
             headless: false,
-            state: PhantomData::default(),
+            state: PhantomData,
         }
     }
 
@@ -47,7 +53,7 @@ impl<T: Simulation> SimulationBuilder<T, BuilderInit> {
             window: self.window,
             renderer: self.renderer,
             headless: self.headless,
-            state: PhantomData::default(),
+            state: PhantomData,
         }
     }
 }
@@ -77,7 +83,7 @@ impl<T: Simulation> SimulationBuilder<T, BuilderComplete> {
             super::SimulationContext {
                 simulation: <T as Simulation>::new(&renderer),
                 event_loop: self.event_loop.unwrap_unchecked(),
-                renderer: Arc::new(Mutex::new(renderer)),
+                renderer: Rc::new(Mutex::new(renderer)),
                 window,
             }
         }
@@ -92,7 +98,7 @@ impl<T: Simulation, S: BuilderState> SimulationBuilder<T, S> {
             event_loop: self.event_loop,
             renderer: self.renderer,
             headless: self.headless,
-            state: PhantomData::default(),
+            state: PhantomData,
         }
     }
 
@@ -103,7 +109,7 @@ impl<T: Simulation, S: BuilderState> SimulationBuilder<T, S> {
             window: self.window,
             event_loop: self.event_loop,
             renderer: self.renderer,
-            state: PhantomData::default(),
+            state: PhantomData,
         }
     }
 }

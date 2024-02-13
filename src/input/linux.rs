@@ -4,7 +4,6 @@ use std::collections::HashMap;
 
 impl Inputs {
     fn render_input(
-        &self,
         ui: &Ui,
         (name, input): (&str, &Input),
         scope: &str,
@@ -48,7 +47,7 @@ impl Inputs {
                     }
                 }
             }
-            &Input::GROUP(ref inputs) => {
+            Input::GROUP(inputs) => {
                 let scope = input_name;
 
                 let mut inputs: Vec<_> = inputs
@@ -58,7 +57,7 @@ impl Inputs {
                 inputs.sort_by_key(|&(name, _)| name);
 
                 for input in inputs {
-                    self.render_input(ui, input, scope.as_str(), map)?;
+                    Self::render_input(ui, input, scope.as_str(), map)?;
                 }
             }
         }
@@ -100,10 +99,7 @@ impl Inputs {
 
             ui_window.build(|| {
                 for input in inputs {
-                    if self
-                        .render_input(ui, input, scope.as_str(), values.as_mut())
-                        .is_none()
-                    {
+                    if Self::render_input(ui, input, scope.as_str(), values.as_mut()).is_none() {
                         log::error!("aftgraphs::input::render failed to render inputs");
                     }
                 }

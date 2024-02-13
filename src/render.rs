@@ -1,7 +1,8 @@
-use crate::prelude::Ui;
+use crate::input::InputValue;
 use crate::ui::UiPlatform;
+use crate::{prelude::Ui, simulation::Simulation};
 use async_mutex::Mutex;
-use std::ops::Range;
+use std::collections::HashMap;
 use std::sync::Arc;
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -10,7 +11,14 @@ mod linux;
 mod wasm;
 
 pub mod builder;
-pub use builder::{RenderPipelineBuilder, ShaderBuilder};
+pub use builder::{BindGroupLayoutBuilder, RenderPipelineBuilder, ShaderBuilder};
+pub use wgpu::RenderPass;
+
+pub static BINDING_UNIFORM_BUFFER: wgpu::BindingType = wgpu::BindingType::Buffer {
+    ty: wgpu::BufferBindingType::Uniform,
+    has_dynamic_offset: false,
+    min_binding_size: None,
+};
 
 pub struct RendererPass {
     pub encoder: wgpu::CommandEncoder,
@@ -48,11 +56,10 @@ pub struct Renderer {
 }
 
 impl Renderer {
-    async fn display_render(
+    async fn display_render<T: Simulation>(
         &self,
-        pipeline: &RenderPipeline,
-        vertices: Range<u32>,
-        indices: Range<u32>,
+        simulation: Arc<Mutex<T>>,
+        input_values: &HashMap<String, InputValue>,
     ) {
         let surface = self.surface.as_ref().unwrap();
 
@@ -81,8 +88,8 @@ impl Renderer {
 
         let pass = unsafe { pass.as_mut().unwrap_unchecked() };
         {
-            let mut render_pass = pass.encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("display render pass"),
+            let render_pass = pass.encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("aftgraphs::render::Renderer::display_render"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &pass.view,
                     resolve_target: None,
@@ -95,27 +102,29 @@ impl Renderer {
                 timestamp_writes: None,
                 occlusion_query_set: None,
             });
-            render_pass.set_pipeline(&pipeline.pipeline);
-            render_pass.draw(vertices, indices)
+            simulation
+                .lock()
+                .await
+                .render(self, render_pass, input_values)
+                .await;
         }
     }
 
-    async fn headless_render(
+    async fn headless_render<T: Simulation>(
         &self,
-        pipeline: &RenderPipeline,
-        vertices: Range<u32>,
-        indices: Range<u32>,
+        simulation: Arc<Mutex<T>>,
+        input_values: &HashMap<String, InputValue>,
         out_img: &mut [u8],
     ) {
         let mut encoder = self
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("display render enconder"),
+                label: Some("aftgraphs::render::Renderer::headless_render"),
             });
 
         {
-            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("headless render pass"),
+            let render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("aftgraphs::render::Renderer::headless_render"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: self.texture_view.as_ref().unwrap(),
                     resolve_target: None,
@@ -134,8 +143,11 @@ impl Renderer {
                 occlusion_query_set: None,
             });
 
-            render_pass.set_pipeline(&pipeline.pipeline);
-            render_pass.draw(vertices, indices);
+            simulation
+                .lock()
+                .await
+                .render(self, render_pass, input_values)
+                .await;
         }
 
         let u32_size = std::mem::size_of::<u32>() as u32;
@@ -170,21 +182,21 @@ impl Renderer {
         out_img.clone_from_slice(&data[..]);
     }
 
-    pub async fn render(
+    // Render a frame using the RenderPipeline, calling the closure draw
+    // to gain access to the rendering pass
+    pub async fn render<T: Simulation>(
         &self,
-        pipeline: &RenderPipeline,
-        vertices: Range<u32>,
-        indices: Range<u32>,
+        simulation: Arc<Mutex<T>>,
+        input_values: &HashMap<String, InputValue>,
         out_img: Arc<Mutex<Vec<u8>>>,
     ) {
         if !self.headless {
-            self.display_render(pipeline, vertices, indices).await;
+            self.display_render(simulation, input_values).await;
         } else {
             let out_img = out_img.clone();
             self.headless_render(
-                pipeline,
-                vertices,
-                indices,
+                simulation,
+                input_values,
                 out_img.lock().await.as_mut_slice(),
             )
             .await;

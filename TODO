@@ -1,0 +1,6 @@
+Add input event support
+Add input forms to WASM
+Support headless rendering:
+	- Hidden window
+	- file format for inputs
+	- cli options

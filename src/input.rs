@@ -2,6 +2,7 @@ use crate::prelude::{Arc, Mutex};
 use async_mutex::MutexGuard;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::convert::{AsMut, AsRef};
 use std::fs::read_to_string;
 use std::path::Path;
 
@@ -47,12 +48,16 @@ impl InputStateGuard<'_> {
     pub fn get_mut(&mut self, name: &str) -> Option<&mut InputValue> {
         self.guard.get_mut(name)
     }
+}
 
-    pub fn as_ref(&self) -> &HashMap<String, InputValue> {
+impl<'a> AsRef<HashMap<String, InputValue>> for InputStateGuard<'a> {
+    fn as_ref(&self) -> &HashMap<String, InputValue> {
         &self.guard
     }
+}
 
-    pub fn as_mut(&mut self) -> &mut HashMap<String, InputValue> {
+impl<'a> AsMut<HashMap<String, InputValue>> for InputStateGuard<'a> {
+    fn as_mut(&mut self) -> &mut HashMap<String, InputValue> {
         &mut self.guard
     }
 }

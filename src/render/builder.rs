@@ -22,6 +22,12 @@ pub struct ShaderBuilder<'a, S: BuilderState> {
     state: PhantomData<S>,
 }
 
+// Builder for a BindGroupLayout
+pub struct BindGroupLayoutBuilder<'a> {
+    label: Option<&'a str>,
+    entries: Vec<wgpu::BindGroupLayoutEntry>,
+}
+
 // Builder struct for a rendering pipeline
 // Requires adding a vertex shader (as a Shader struct)
 pub struct RenderPipelineBuilder<'a, S: BuilderState> {
@@ -45,6 +51,12 @@ pub struct BuilderComplete;
 impl sealed::Sealed for BuilderInit {}
 impl sealed::Sealed for BuilderComplete {}
 
+impl<'a> Default for ShaderBuilder<'a, BuilderInit> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<'a> ShaderBuilder<'a, BuilderInit> {
     pub fn new() -> Self {
         Self {
@@ -53,7 +65,7 @@ impl<'a> ShaderBuilder<'a, BuilderInit> {
             fs_entry: None,
             buffers: vec![],
             targets: vec![],
-            state: PhantomData::default(),
+            state: PhantomData,
         }
     }
 
@@ -67,16 +79,16 @@ impl<'a> ShaderBuilder<'a, BuilderInit> {
             fs_entry: self.fs_entry,
             buffers: self.buffers,
             targets: self.targets,
-            state: PhantomData::default(),
+            state: PhantomData,
         }
     }
 }
 
 impl<'a> ShaderBuilder<'a, BuilderComplete> {
-    // Use a Rendererer to build the completed shader
-    // Creates a Shader struct to be passed to RendererPipeline things
-    // If a fragment shader entry point is used and no color targets are set,
-    // the builder will use a default target
+    /// Use a Rendererer to build the completed shader
+    /// Creates a Shader struct to be passed to RendererPipeline things
+    /// If a fragment shader entry point is used and no color targets are set,
+    /// the builder will use a default target
     pub fn build(self, renderer: &Renderer) -> Shader<'a> {
         let Self {
             module,
@@ -117,33 +129,33 @@ impl<'a, S: BuilderState> ShaderBuilder<'a, S> {
         self
     }
 
-    // Add a default fragment shader entrypoint of "fs_main"
-    // If a fragment shader entry point is used and no color targets are set,
-    // the builder will use a default target
+    /// Add a default fragment shader entrypoint of "fs_main"
+    /// If a fragment shader entry point is used and no color targets are set,
+    /// the builder will use a default target
     pub fn with_default_fs_entrypoint(mut self) -> Self {
         self.fs_entry = Some("fs_main");
         self
     }
 
-    // Append a buffer to the shader VertexState
+    /// Append a buffer to the shader VertexState
     pub fn with_buffer(mut self, buffer: wgpu::VertexBufferLayout<'a>) -> Self {
         self.buffers.push(buffer);
         self
     }
 
-    // Set the shader's VertexState buffers to the passed vec
+    /// Set the shader's VertexState buffers to the passed vec
     pub fn with_buffers(mut self, buffers: Vec<wgpu::VertexBufferLayout<'a>>) -> Self {
         self.buffers = buffers;
         self
     }
 
-    // Extends the shader VertexState's buffers with a slice
+    /// Extends the shader VertexState's buffers with a slice
     pub fn with_buffers_slice(mut self, buffers: &[wgpu::VertexBufferLayout<'a>]) -> Self {
         self.buffers.extend_from_slice(buffers);
         self
     }
 
-    // Extends the shader VertexState's buffers with an iterator
+    /// Extends the shader VertexState's buffers with an iterator
     pub fn with_buffers_iter(
         mut self,
         buffers: impl IntoIterator<Item = wgpu::VertexBufferLayout<'a>>,
@@ -152,38 +164,100 @@ impl<'a, S: BuilderState> ShaderBuilder<'a, S> {
         self
     }
 
-    // Appends a target to the fragment shader color targets
-    // NOTE: This will prevent the builder from inserting a default color target!
+    /// Appends a target to the fragment shader color targets
+    /// NOTE: This will prevent the builder from inserting a default color target!
     pub fn with_target(mut self, target: Option<wgpu::ColorTargetState>) -> Self {
         self.targets.push(target);
         self
     }
 
-    // Set the shader FragmentState's color targets to the passed vec
-    // NOTE: This will prevent the builder from inserting a default color target if
-    //       the targets Vec is not empty!
+    /// Set the shader FragmentState's color targets to the passed vec
+    /// NOTE: This will prevent the builder from inserting a default color target if
+    ///       the targets Vec is not empty!
     pub fn with_targets(mut self, targets: Vec<Option<wgpu::ColorTargetState>>) -> Self {
         self.targets = targets;
         self
     }
 
-    // Extends the shader FragmentState's color targets with a slice
-    // NOTE: This will prevent the builder from inserting a default color target if
-    //       the targets slice is not empty!
+    /// Extends the shader FragmentState's color targets with a slice
+    /// NOTE: This will prevent the builder from inserting a default color target if
+    ///       the targets slice is not empty!
     pub fn with_targets_slice(mut self, targets: &[Option<wgpu::ColorTargetState>]) -> Self {
         self.targets.extend_from_slice(targets);
         self
     }
 
-    // Extends the shader FragmentShate's color targets with an iterator
-    // NOTE: This will prevent the builder from inserting a default color target if
-    //       the targets slice is not empty!
+    /// Extends the shader FragmentShate's color targets with an iterator
+    /// NOTE: This will prevent the builder from inserting a default color target if
+    ///       the targets slice is not empty!
     pub fn with_targets_iter(
         mut self,
         targets: impl IntoIterator<Item = Option<wgpu::ColorTargetState>>,
     ) -> Self {
         self.targets.extend(targets);
         self
+    }
+}
+
+impl<'a> Default for BindGroupLayoutBuilder<'a> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<'a> BindGroupLayoutBuilder<'a> {
+    pub fn new() -> Self {
+        Self {
+            label: None,
+            entries: vec![],
+        }
+    }
+
+    pub fn with_label(mut self, label: Option<&'a str>) -> Self {
+        self.label = label;
+        self
+    }
+
+    /// Appends a BindGroupLayoutEntry to the BindGroupLayout
+    pub fn with_entry(mut self, entry: wgpu::BindGroupLayoutEntry) -> Self {
+        self.entries.push(entry);
+        self
+    }
+
+    /// Set the BindGroupLayout's entries to the passed vec
+    pub fn with_entries(mut self, entries: Vec<wgpu::BindGroupLayoutEntry>) -> Self {
+        self.entries = entries;
+        self
+    }
+
+    /// Extends the BindGroupLayout's entries with a slice
+    pub fn with_entries_slice(mut self, entries: &[wgpu::BindGroupLayoutEntry]) -> Self {
+        self.entries.extend_from_slice(entries);
+        self
+    }
+
+    /// Extends the BindGroupLayout's entries with an iterator
+    pub fn with_entries_iter(
+        mut self,
+        entries: impl IntoIterator<Item = wgpu::BindGroupLayoutEntry>,
+    ) -> Self {
+        self.entries.extend(entries);
+        self
+    }
+
+    pub fn build(self, renderer: &Renderer) -> wgpu::BindGroupLayout {
+        renderer
+            .device
+            .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: self.label,
+                entries: self.entries.as_slice(),
+            })
+    }
+}
+
+impl<'a> Default for RenderPipelineBuilder<'a, BuilderInit> {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -201,16 +275,16 @@ impl<'a> RenderPipelineBuilder<'a, BuilderInit> {
             depth_stencil: None,
             multisample: wgpu::MultisampleState::default(),
             multiview: None,
-            state: PhantomData::default(),
+            state: PhantomData,
         }
     }
 
-    // Adds a vertex shader to the pipeline in the form of the Shader struct
-    // If the shader struct contains a fragment shader, it will also set that
-    // which will overwrite any previous fragment shader set.
-    // Either use RenderPipelineBuilder::with_vertex_shader_only or
-    // set the fragment shader with RenderPipelineBuilder::with_fragment_shader
-    // after to use a different Shader (or no Shader) for the fragment stage
+    /// Adds a vertex shader to the pipeline in the form of the Shader struct
+    /// If the shader struct contains a fragment shader, it will also set that
+    /// which will overwrite any previous fragment shader set.
+    /// Either use RenderPipelineBuilder::with_vertex_shader_only or
+    /// set the fragment shader with RenderPipelineBuilder::with_fragment_shader
+    /// after to use a different Shader (or no Shader) for the fragment stage
     pub fn with_vertex_shader(
         self,
         shader: Shader<'a>,
@@ -248,13 +322,13 @@ impl<'a> RenderPipelineBuilder<'a, BuilderInit> {
             depth_stencil,
             multisample,
             multiview,
-            state: PhantomData::default(),
+            state: PhantomData,
         }
     }
 
-    // Adds a vertex shader to the pipeline in the form of the Shader struct
-    // If the shader struct contains a fragment shader, it will NOT set that.
-    // Use RenderPipelineBuilder::with_vertex_shader to set both vertex and fragment shader together
+    /// Adds a vertex shader to the pipeline in the form of the Shader struct
+    /// If the shader struct contains a fragment shader, it will NOT set that.
+    /// Use RenderPipelineBuilder::with_vertex_shader to set both vertex and fragment shader together
     pub fn with_vertex_shader_only(
         self,
         shader: Shader<'a>,
@@ -286,14 +360,14 @@ impl<'a> RenderPipelineBuilder<'a, BuilderInit> {
             depth_stencil,
             multisample,
             multiview,
-            state: PhantomData::default(),
+            state: PhantomData,
         }
     }
 }
 
 impl<'a> RenderPipelineBuilder<'a, BuilderComplete> {
-    // Use a Renderer to build the completed pipeline.
-    // This pipeline is used when calling Renderer::render
+    /// Use a Renderer to build the completed pipeline.
+    /// This pipeline is used when calling Renderer::render
     pub fn build(self, renderer: &Renderer) -> RenderPipeline {
         let Self {
             vertex_shader,
@@ -324,14 +398,12 @@ impl<'a> RenderPipelineBuilder<'a, BuilderComplete> {
                 entry_point: unsafe { vertex_shader.fs_entry.unwrap_unchecked() },
                 targets: vertex_shader.targets.as_slice(),
             })
-        } else if let Some(shader) = fragment_shader.as_ref() {
-            Some(wgpu::FragmentState {
+        } else {
+            fragment_shader.as_ref().map(|shader| wgpu::FragmentState {
                 module: &shader.shader,
-                entry_point: unsafe { &shader.fs_entry.unwrap_unchecked() },
+                entry_point: unsafe { shader.fs_entry.unwrap_unchecked() },
                 targets: shader.targets.as_slice(),
             })
-        } else {
-            None
         };
 
         let layout = renderer
@@ -360,10 +432,10 @@ impl<'a> RenderPipelineBuilder<'a, BuilderComplete> {
 }
 
 impl<'a, S: BuilderState> RenderPipelineBuilder<'a, S> {
-    // Sets the fragment shader. Will override any current fragment shader set.
-    // To use the fragment shader with the vertex shader, use
-    // RenderPipelineBuilder::with_vertex_shader .
-    // Returns Err(self) if shader is not None but does not have an fs_entry
+    /// Sets the fragment shader. Will override any current fragment shader set.
+    /// To use the fragment shader with the vertex shader, use
+    /// RenderPipelineBuilder::with_vertex_shader .
+    /// Returns Err(self) if shader is not None but does not have an fs_entry
     pub fn with_fragment_shader(mut self, shader: Option<Shader<'a>>) -> Result<Self, Self> {
         if shader
             .as_ref()
@@ -377,10 +449,13 @@ impl<'a, S: BuilderState> RenderPipelineBuilder<'a, S> {
         }
     }
 
-    // Sets the fragment shader. Will override any current fragment shader set.
-    // To use the fragment shader with the vertex shader, use
-    // RenderPipelineBuilder::with_vertex_shader .
-    // Does not check if the given shader actually has a fragment shader entry point
+    /// Sets the fragment shader. Will override any current fragment shader set.
+    /// To use the fragment shader with the vertex shader, use
+    /// RenderPipelineBuilder::with_vertex_shader .
+    /// Does not check if the given shader actually has a fragment shader entry point
+    ///
+    /// # Safety
+    /// Only use when you're certain the given shader is None or has a non-None fs_entry
     pub unsafe fn with_fragment_shader_unchecked(mut self, shader: Option<Shader<'a>>) -> Self {
         self.fragment_shader = shader;
         self.fragment_use_vertex_shader = false;
@@ -397,25 +472,25 @@ impl<'a, S: BuilderState> RenderPipelineBuilder<'a, S> {
         self
     }
 
-    // Append a BindGroupLayout to the pipeline
+    /// Append a BindGroupLayout to the pipeline
     pub fn with_bind_group_layout(mut self, layout: &'a wgpu::BindGroupLayout) -> Self {
         self.bind_group_layouts.push(layout);
         self
     }
 
-    // Set the pipeline's bind_group_layouts to the passed vec
+    /// Set the pipeline's bind_group_layouts to the passed vec
     pub fn with_bind_group_layouts(mut self, layouts: Vec<&'a wgpu::BindGroupLayout>) -> Self {
         self.bind_group_layouts = layouts;
         self
     }
 
-    // Append the slice of BindGroupLayout's to the pipeline's bind_group_layouts
+    /// Append the slice of BindGroupLayout's to the pipeline's bind_group_layouts
     pub fn with_bind_group_layouts_slice(mut self, layouts: &[&'a wgpu::BindGroupLayout]) -> Self {
         self.bind_group_layouts.extend_from_slice(layouts);
         self
     }
 
-    // Append the iterator of BindGroupLayout's to the pipeline's bind_group_layouts
+    /// Append the iterator of BindGroupLayout's to the pipeline's bind_group_layouts
     pub fn with_bind_group_layouts_iter(
         mut self,
         layouts: impl IntoIterator<Item = &'a wgpu::BindGroupLayout>,
@@ -424,13 +499,13 @@ impl<'a, S: BuilderState> RenderPipelineBuilder<'a, S> {
         self
     }
 
-    // Append a PushConstantRange to the pipeline
+    /// Append a PushConstantRange to the pipeline
     pub fn with_push_constant_range(mut self, constant_range: wgpu::PushConstantRange) -> Self {
         self.push_constant_ranges.push(constant_range);
         self
     }
 
-    // Set the pipeline's push_constant_ranges to the passed vec
+    /// Set the pipeline's push_constant_ranges to the passed vec
     pub fn with_push_constant_ranges(
         mut self,
         constant_ranges: Vec<wgpu::PushConstantRange>,
@@ -439,7 +514,7 @@ impl<'a, S: BuilderState> RenderPipelineBuilder<'a, S> {
         self
     }
 
-    // Append the slice of PushConstantRange's to the pipeline's push_constant_ranges
+    /// Append the slice of PushConstantRange's to the pipeline's push_constant_ranges
     pub fn with_push_constant_ranges_slice(
         mut self,
         constant_ranges: &[wgpu::PushConstantRange],
@@ -448,7 +523,7 @@ impl<'a, S: BuilderState> RenderPipelineBuilder<'a, S> {
         self
     }
 
-    // Append the iterator of PushConstantRange's to the pipeline's push_constant_ranges
+    /// Append the iterator of PushConstantRange's to the pipeline's push_constant_ranges
     pub fn with_push_constant_ranges_iter(
         mut self,
         constant_ranges: impl IntoIterator<Item = wgpu::PushConstantRange>,

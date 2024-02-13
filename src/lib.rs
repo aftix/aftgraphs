@@ -5,16 +5,21 @@ pub mod primitives;
 pub mod render;
 pub mod simulation;
 pub mod ui;
+pub mod uniform;
 
 pub mod prelude {
     pub use crate::input::{InputState, InputValue};
-    pub use crate::render::{RenderPipeline, RenderPipelineBuilder, Renderer, ShaderBuilder};
+    pub use crate::render::{
+        BindGroupLayoutBuilder, RenderPass, RenderPipeline, RenderPipelineBuilder, Renderer,
+        ShaderBuilder, BINDING_UNIFORM_BUFFER,
+    };
     pub use crate::simulation::{Simulation, SimulationContext};
     pub use crate::ui::{Ui, UiFrame};
+    pub use crate::uniform::{Uniform, UniformBuilder};
     pub use async_mutex::Mutex;
+    pub use bytemuck;
     pub use std::sync::Arc;
-    pub use wgpu;
-    pub use wgpu::include_wgsl;
+    pub use wgpu::{self, include_wgsl, BindGroupLayoutEntry, BindingType, ShaderStages};
 }
 
 #[cfg(not(target_arch = "wasm32"))]
