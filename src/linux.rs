@@ -17,11 +17,7 @@ pub fn block_on<F: Future<Output = ()> + 'static>(fut: F) {
     pollster::block_on(fut);
 }
 
-pub fn sim_main<T: Simulation>(
-    shader: wgpu::ShaderModuleDescriptor<'static>,
-    inputs: Inputs,
-    simulation: T,
-) {
+pub fn sim_main<T: Simulation>(inputs: Inputs) {
     init_platform();
 
     let event_loop: EventLoop<()> = EventLoopBuilder::default()
@@ -29,12 +25,12 @@ pub fn sim_main<T: Simulation>(
         .expect("failed to build event loop");
 
     let window = Window::new(&event_loop).unwrap();
+    window.set_title(inputs.simulation.name.as_str());
 
     block_on(async move {
-        let context = SimulationBuilder::new(simulation)
+        let context = SimulationBuilder::<T, _>::new()
             .window(window)
             .event_loop(event_loop)
-            .shader(shader)
             .build()
             .await;
 

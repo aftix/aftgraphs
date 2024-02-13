@@ -9,10 +9,26 @@ mod linux;
 #[cfg(target_arch = "wasm32")]
 mod wasm;
 
+pub mod builder;
+pub use builder::{RenderPipelineBuilder, ShaderBuilder};
+
 pub struct RendererPass {
     pub encoder: wgpu::CommandEncoder,
     pub frame: wgpu::SurfaceTexture,
     pub view: wgpu::TextureView,
+}
+
+pub struct Shader<'a> {
+    shader: wgpu::ShaderModule,
+    vs_entry: &'a str,
+    fs_entry: Option<&'a str>,
+    buffers: Vec<wgpu::VertexBufferLayout<'a>>,
+    targets: Vec<Option<wgpu::ColorTargetState>>,
+}
+
+pub struct RenderPipeline {
+    pub pipeline: wgpu::RenderPipeline,
+    pub layout: wgpu::PipelineLayout,
 }
 
 pub struct Renderer {
@@ -23,9 +39,6 @@ pub struct Renderer {
     pub render_pass: Mutex<Option<RendererPass>>,
     pub surface: Option<wgpu::Surface>,
     pub queue: wgpu::Queue,
-    pub shader: wgpu::ShaderModule,
-    pub render_pipeline: wgpu::RenderPipeline,
-    pub pipeline_layout: wgpu::PipelineLayout,
     pub config: Option<wgpu::SurfaceConfiguration>,
     pub texture: Option<wgpu::Texture>,
     pub texture_view: Option<wgpu::TextureView>,
@@ -35,7 +48,12 @@ pub struct Renderer {
 }
 
 impl Renderer {
-    async fn display_render(&self, vertices: Range<u32>, indices: Range<u32>) {
+    async fn display_render(
+        &self,
+        pipeline: &RenderPipeline,
+        vertices: Range<u32>,
+        indices: Range<u32>,
+    ) {
         let surface = self.surface.as_ref().unwrap();
 
         let mut pass = self.render_pass.lock().await;
@@ -77,12 +95,18 @@ impl Renderer {
                 timestamp_writes: None,
                 occlusion_query_set: None,
             });
-            render_pass.set_pipeline(&self.render_pipeline);
+            render_pass.set_pipeline(&pipeline.pipeline);
             render_pass.draw(vertices, indices)
         }
     }
 
-    async fn headless_render(&self, vertices: Range<u32>, indices: Range<u32>, out_img: &mut [u8]) {
+    async fn headless_render(
+        &self,
+        pipeline: &RenderPipeline,
+        vertices: Range<u32>,
+        indices: Range<u32>,
+        out_img: &mut [u8],
+    ) {
         let mut encoder = self
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
@@ -110,7 +134,7 @@ impl Renderer {
                 occlusion_query_set: None,
             });
 
-            render_pass.set_pipeline(&self.render_pipeline);
+            render_pass.set_pipeline(&pipeline.pipeline);
             render_pass.draw(vertices, indices);
         }
 
@@ -148,16 +172,22 @@ impl Renderer {
 
     pub async fn render(
         &self,
+        pipeline: &RenderPipeline,
         vertices: Range<u32>,
         indices: Range<u32>,
         out_img: Arc<Mutex<Vec<u8>>>,
     ) {
         if !self.headless {
-            self.display_render(vertices, indices).await;
+            self.display_render(pipeline, vertices, indices).await;
         } else {
             let out_img = out_img.clone();
-            self.headless_render(vertices, indices, out_img.lock().await.as_mut_slice())
-                .await;
+            self.headless_render(
+                pipeline,
+                vertices,
+                indices,
+                out_img.lock().await.as_mut_slice(),
+            )
+            .await;
         }
     }
 }

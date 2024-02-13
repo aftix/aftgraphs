@@ -21,6 +21,8 @@ pub trait Simulation: 'static {
         inputs: &HashMap<String, InputValue>,
         out_img: Arc<Mutex<Vec<u8>>>,
     );
+
+    fn new(renderer: &Renderer) -> Self;
 }
 
 pub struct SimulationContext<T: Simulation> {

@@ -1,11 +1,7 @@
 use crate::prelude::{Mutex, Renderer, Ui};
 use anyhow::anyhow;
-use wgpu::ShaderModuleDescriptor;
 
-pub async fn init(
-    mut size: (u32, u32),
-    shader: ShaderModuleDescriptor<'_>,
-) -> anyhow::Result<Renderer> {
+pub async fn init(mut size: (u32, u32)) -> anyhow::Result<Renderer> {
     size.0 = size.0.max(1);
     size.1 = size.1.max(1);
 
@@ -32,8 +28,6 @@ pub async fn init(
         .await
         .map_err(|err| anyhow!("wgpu::Adapter::request_device: {}", err))?;
 
-    let shader = device.create_shader_module(shader);
-
     let texture_desc = wgpu::TextureDescriptor {
         size: wgpu::Extent3d {
             width: size.0,
@@ -50,35 +44,6 @@ pub async fn init(
     };
     let texture = device.create_texture(&texture_desc);
     let texture_view = texture.create_view(&Default::default());
-
-    let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-        label: None,
-        bind_group_layouts: &[],
-        push_constant_ranges: &[],
-    });
-
-    let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-        label: Some("Render Pipeline"),
-        layout: Some(&pipeline_layout),
-        vertex: wgpu::VertexState {
-            module: &shader,
-            entry_point: "vs_main",
-            buffers: &[],
-        },
-        fragment: Some(wgpu::FragmentState {
-            module: &shader,
-            entry_point: "fs_main",
-            targets: &[Some(wgpu::ColorTargetState {
-                format: texture_desc.format,
-                blend: Some(wgpu::BlendState::REPLACE),
-                write_mask: wgpu::ColorWrites::ALL,
-            })],
-        }),
-        primitive: wgpu::PrimitiveState::default(),
-        depth_stencil: None,
-        multisample: wgpu::MultisampleState::default(),
-        multiview: None,
-    });
 
     let u32_size = std::mem::size_of::<u32>() as u32;
     let buffer_size = (u32_size * size.0 * size.1) as wgpu::BufferAddress;
@@ -100,9 +65,6 @@ pub async fn init(
         render_pass: Mutex::new(None),
         surface: None,
         queue,
-        shader,
-        render_pipeline,
-        pipeline_layout,
         config: None,
         texture: Some(texture),
         texture_view: Some(texture_view),

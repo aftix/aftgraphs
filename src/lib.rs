@@ -8,11 +8,13 @@ pub mod ui;
 
 pub mod prelude {
     pub use crate::input::{InputState, InputValue};
-    pub use crate::render::Renderer;
+    pub use crate::render::{RenderPipeline, RenderPipelineBuilder, Renderer, ShaderBuilder};
     pub use crate::simulation::{Simulation, SimulationContext};
     pub use crate::ui::{Ui, UiFrame};
     pub use async_mutex::Mutex;
     pub use std::sync::Arc;
+    pub use wgpu;
+    pub use wgpu::include_wgsl;
 }
 
 #[cfg(not(target_arch = "wasm32"))]

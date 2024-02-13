@@ -2,10 +2,7 @@ use crate::prelude::{Mutex, Renderer, Ui};
 use anyhow::anyhow;
 use winit::window::Window;
 
-pub async fn init(
-    window: &Window,
-    shader: wgpu::ShaderModuleDescriptor<'_>,
-) -> anyhow::Result<Renderer> {
+pub async fn init(window: &Window) -> anyhow::Result<Renderer> {
     let mut size = window.inner_size();
     size.width = size.width.max(1);
     size.height = size.height.max(1);
@@ -38,35 +35,8 @@ pub async fn init(
         .await
         .map_err(|err| anyhow!("wgpu::Adapter::request_device: {}", err))?;
 
-    let shader = device.create_shader_module(shader);
-
-    let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-        label: None,
-        bind_group_layouts: &[],
-        push_constant_ranges: &[],
-    });
-
     let swapchain_capabilities = surface.get_capabilities(&adapter);
     let swapchain_format = swapchain_capabilities.formats[0];
-
-    let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-        label: None,
-        layout: Some(&pipeline_layout),
-        vertex: wgpu::VertexState {
-            module: &shader,
-            entry_point: "vs_main",
-            buffers: &[],
-        },
-        fragment: Some(wgpu::FragmentState {
-            module: &shader,
-            entry_point: "fs_main",
-            targets: &[Some(swapchain_format.into())],
-        }),
-        primitive: wgpu::PrimitiveState::default(),
-        depth_stencil: None,
-        multisample: wgpu::MultisampleState::default(),
-        multiview: None,
-    });
 
     let config = wgpu::SurfaceConfiguration {
         usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
@@ -89,9 +59,6 @@ pub async fn init(
         render_pass: Mutex::new(None),
         surface: Some(surface),
         queue,
-        shader,
-        pipeline_layout,
-        render_pipeline,
         config: Some(config),
         texture: None,
         texture_view: None,

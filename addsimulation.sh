@@ -47,13 +47,17 @@ use aftgraphs_macros::sim_main;
 struct $SIMNAME;
 
 impl Simulation for $SIMNAME {
+  fn new(renderer: &Renderer) -> Self {
+    // CREATE INSTANCE HERE
+  }
+
   async fn render(&mut self, renderer: Arc<Mutex<Renderer>>, out_img: Arc<Mutex<Vec<u8>>>) {
     let renderer = renderer.lock().await;
     // RENDER HERE
   }
 }
 
-sim_main! { \"/res/$NAME.wgsl\", $\"/res/$NAME.toml\", SIMNAME }
+sim_main! { \"/res/$NAME.toml\", SIMNAME }
 "
 
 popd >/dev/null || exit 3

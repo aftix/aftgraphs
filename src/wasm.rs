@@ -19,11 +19,7 @@ pub fn block_on<F: Future<Output = ()> + 'static>(fut: F) {
     wasm_bindgen_futures::spawn_local(fut);
 }
 
-pub fn sim_main<T: Simulation>(
-    shader: wgpu::ShaderModuleDescriptor<'static>,
-    inputs: Inputs,
-    simulation: T,
-) {
+pub fn sim_main<T: Simulation>(shader: wgpu::ShaderModuleDescriptor<'static>, inputs: Inputs) {
     init_platform();
 
     let html_window = web_sys::window().expect("no global `window` exists");
@@ -44,7 +40,7 @@ pub fn sim_main<T: Simulation>(
         .expect("failed to build winit window");
 
     block_on(async move {
-        let context = SimulationBuilder::new(simulation)
+        let context = SimulationBuilder::<T, _>::new()
             .window(window)
             .event_loop(event_loop)
             .shader(shader)
