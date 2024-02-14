@@ -1,0 +1,160 @@
+name: main
+
+on:
+  push:
+  pull_request:
+    types: [opened, closed]
+    branches: [ master ]
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+permissions:
+  checks: write
+
+jobs:
+  build:
+    name: Build aftgraphs
+    strategy:
+      matrix:
+        arch: 
+          - x86_64-unknown-linux-gnu
+          - wasm32-unknown-unknown
+        include:
+          - profile: dev
+            target: debug
+          - profile: release
+            target: release
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: ilammy/setup-nasm@v1
+        if: "${{ matrix.arch != 'wasm32-unknown-unknown' }}"
+
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.arch }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.arch }}-${{ matrix.profile }}
+
+      - name: Build
+        uses: clechasseur/rs-cargo@v2
+        with:
+          command: build
+          args: --workspace --profile ${{ matrix.profile }} --target ${{ matrix.arch }}
+  clippy:
+    name: Cargo clippy
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        arch:
+          - x86_64-unknown-linux-gnu
+          - wasm32-unknown-unknown
+    steps:
+      - uses: ilammy/setup-nasm@v1
+        if: "${{ matrix.arch != 'wasm32-unknown-unknown' }}"
+
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+          targets: ${{ matrix.arch }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.arch }}
+
+      - name: Run Clippy
+        uses: auguwu/clippy-action@1.3.0
+        with:
+          all-features: true
+          deny: warnings
+          check-args: --target ${{ matrix.arch }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  test:
+    name: Cargo nextest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: ilammy/setup-nasm@v1
+        if: "${{ matrix.arch != 'wasm32-unknown-unknown' }}"
+
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install cargo-nextest
+        uses: baptiste0928/cargo-install@v3
+        with:
+          crate: cargo-nextest
+
+      - name: Run tests
+        uses: clechasseur/rs-cargo@v2
+        with:
+          command: nextest
+          args: run
+
+  deploy:
+    name: Deploy simulations to web server
+    runs-on: ubuntu-latest
+    needs: [build, clippy, test]
+    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.merged) || github.event_name == 'workflow_dispatch'
+    concurrency:
+      group: deploy
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install wasm-bindgen-cli
+        uses: baptiste0928/cargo-install@v3
+        with:
+          crate: wasm-bindgen-cli
+      
+      - name: Build WASM targets
+        run: ./buildwasm.sh
+
+      - name: Archive WASM bundles
+        run: |
+          cd target/
+          rm -rf simulations/
+          mv web/ simulations/
+          tar cvf simulations.tar.gz simulations/
+
+      - name: Create ssh key from repository secret
+        run: |
+          install -m 600 -D /dev/stdin ~/.ssh/id_ed25519 <<< "${{ secrets.WWW_PRIVATE_KEY }}"
+
+      - name: Add web server to ssh known hosts
+        run: ssh-keyscan -H aftix.xyz > ~/.ssh/known_hosts
+
+      - name: Deploy simulations
+        run: |
+          scp target/simulations.tar.gz "www-data@aftix.xyz:~/simulations.tar.gz"
+          ssh "www-data@aftix.xyz" 'sh -ls' <<< "$SCRIPT"
+        env:
+          SCRIPT: >-
+            cd $HOME ;
+            tar xvf simulations.tar.gz ;
+            rm simulations.tar.gz
+            

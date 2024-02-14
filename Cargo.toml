@@ -1,6 +1,6 @@
 [workspace]
-members = [ "aftgraphs-macros","imgui-wgpu","triangle" ]
-exclude = [ "imgui-rs" ]
+members = [ "aftgraphs-macros","triangle" ]
+exclude = [ "imgui-rs", "imgui-wgpu" ]
 
 [package]
 name = "aftgraphs"
