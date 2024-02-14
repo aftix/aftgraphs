@@ -12,7 +12,7 @@ edition = "2021"
 [dependencies]
 anyhow = "1.0"
 futures-intrusive = "0.5"
-wgpu = { version="0.18", features=["webgl", "spirv"] }
+wgpu = { version="0.18", default-features=false, features=["webgl", "spirv", "trace", "wgsl"] }
 winit = { version="0.29.3", features=["rwh_05", "wayland", "x11"] }
 current_platform = "0.2"
 async-mutex = "1.4"
@@ -20,17 +20,18 @@ log = "0.4"
 serde = { version="1.0", features=["derive"] }
 toml = "0.8"
 copypasta = "0.10"
-bytemuck = { version = "1.14", features = ["derive"] }
+bytemuck = { version = "1.14", features=["derive"] }
 smallvec = "1.13"
+web-time = "1.0"
 
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
 clap = "4.4"
 env_logger = "0.10"
 rav1e = "0.7"
 pollster = "0.3"
-imgui = { path = "./imgui-rs/imgui" }
-imgui-winit-support = { path = "./imgui-rs/imgui-winit-support" }
-imgui-wgpu = { path = "./imgui-wgpu" }
+imgui = { path="./imgui-rs/imgui" }
+imgui-winit-support = { path="./imgui-rs/imgui-winit-support" }
+imgui-wgpu = { path="./imgui-wgpu" }
 
 [target.'cfg(not(target_family = "wasm"))'.dependencies.winit]
 version = "0.29.3"
@@ -40,4 +41,36 @@ features = ["rwh_05", "wayland", "x11"]
 console_log = { version="0.2", features=["color"] }
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
-web-sys = { version = "0.3", features = ["Window", "Document", "Element", "HtmlCanvasElement"] }
+console_error_panic_hook = "0.1"
+web-sys = { version="0.3", features = [
+  "Document",
+  "Element",
+  "HtmlElement",
+  "HtmlFormElement",
+  "HtmlInputElement",
+  "HtmlLabelElement",
+  "HtmlFieldSetElement",
+  "HtmlLegendElement",
+  "HtmlCanvasElement",
+  "Node",
+  "WebGl2RenderingContext",
+  "WebGlActiveInfo",
+  "WebGlBuffer",
+  "WebGlContextAttributes",
+  "WebGlContextEvent",
+  "WebGlContextEventInit",
+  "WebGlFramebuffer",
+  "WebGlPowerPreference",
+  "WebGlProgram",
+  "WebGlQuery",
+  "WebGlRenderbuffer",
+  "WebGlRenderingContext",
+  "WebGlSampler",
+  "WebGlShader",
+  "WebGlShaderPrecisionFormat",
+  "WebGlSync",
+  "WebGlTexture",
+  "WebGlTransformFeedback",
+  "WebGlUniformLocation",
+  "WebGlVertexArrayObject",
+] }

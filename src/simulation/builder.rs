@@ -66,6 +66,7 @@ impl<T: Simulation> SimulationBuilder<T, BuilderComplete> {
                 .expect("SimulationBuilder::build: Failed to init headless mode");
             (self.window, renderer)
         } else {
+            log::info!("Building renderer");
             let renderer = {
                 let window = self.window.lock().await;
                 if let Some(window) = window.as_ref() {
@@ -79,6 +80,7 @@ impl<T: Simulation> SimulationBuilder<T, BuilderComplete> {
             (self.window, renderer)
         };
 
+        log::info!("Built simulation");
         unsafe {
             super::SimulationContext {
                 simulation: <T as Simulation>::new(&renderer),

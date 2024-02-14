@@ -1,6 +1,6 @@
 use aftgraphs::prelude::*;
 use aftgraphs_macros::sim_main;
-use std::collections::HashMap;
+use std::{collections::HashMap, num::NonZeroU64};
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 #[repr(C, align(16))]
@@ -49,7 +49,11 @@ impl Simulation for TriangleSimulation {
             .with_entry(BindGroupLayoutEntry {
                 binding: 0,
                 visibility: ShaderStages::VERTEX,
-                ty: BINDING_UNIFORM_BUFFER,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: NonZeroU64::new(16u64),
+                },
                 count: None,
             })
             .build(renderer);
@@ -58,7 +62,11 @@ impl Simulation for TriangleSimulation {
             .with_entry(BindGroupLayoutEntry {
                 binding: 0,
                 visibility: ShaderStages::FRAGMENT,
-                ty: BINDING_UNIFORM_BUFFER,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: NonZeroU64::new(16u64),
+                },
                 count: None,
             })
             .build(renderer);
@@ -80,8 +88,8 @@ impl Simulation for TriangleSimulation {
             .build(renderer);
 
         let pipeline = RenderPipelineBuilder::new()
-            .with_layout_label(Some("TriangleSimulation"))
-            .with_pipeline_label(Some("TriangleSimulation"))
+            .with_layout_label(Some("TriangleSimulation::pipeline_layout"))
+            .with_pipeline_label(Some("TriangleSimulation::pipeline"))
             .with_vertex_shader(shader)
             .with_bind_group_layout(rotation.bind_group_layout())
             .with_bind_group_layout(color.bind_group_layout())

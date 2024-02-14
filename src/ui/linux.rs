@@ -3,9 +3,25 @@ use imgui::{ClipboardBackend, Context, FontConfig, FontSource};
 use imgui_wgpu::{Renderer as ImguiRenderer, RendererConfig};
 use imgui_winit_support::{HiDpiMode, WinitPlatform};
 use wgpu::{Device, Queue, TextureFormat};
-use winit::window::Window;
+use winit::{event::Event, window::Window};
 
-pub struct UiPlatform(pub WinitPlatform);
+pub struct UiPlatform(WinitPlatform);
+
+impl UiPlatform {
+    pub fn prepare_frame(&mut self, ui: &mut Ui, window: &Window) {
+        self.0
+            .prepare_frame(ui.0.io_mut(), window)
+            .expect("aftgraphs::ui::UiPlatform::prepare_frame: Enexpected failure");
+    }
+
+    pub fn prepare_render(&mut self, frame: &mut imgui::Ui, window: &Window) {
+        self.0.prepare_render(frame, window);
+    }
+
+    pub fn handle_event<T>(&mut self, ui: &mut Ui, window: &Window, event: &Event<T>) {
+        self.0.handle_event(ui.0.io_mut(), window, event);
+    }
+}
 
 struct ClipboardSupport(ClipboardContext);
 

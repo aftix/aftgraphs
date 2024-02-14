@@ -17,15 +17,36 @@ cargo new "$NAME"
 pushd "$NAME" >/dev/null || exit 3
 
 cat >> Cargo.toml <<<'
-aftgraphs = { path = "../" }
-aftgraphs-macros = { path = "../aftgraphs-macros" }
-winit = "0.29.10"
-wgpu = "0.18"
+aftgraphs = { path="../" }
+aftgraphs-macros = { path="../aftgraphs-macros" }
+winit = { version = "0.29.3", features=["rwh_05", "wayland", "x11"] }
+wgpu = { version="0.18", features=["webgl", "spirv"] }
 
 '"[target.'cfg(target_family = \"wasm\")'.dependencies]"'
 wasm-bindgen = "0.2"
-web-sys = { version = "0.3", features = ["Window", "Document", "Element", "HtmlCanvasElement"] }
 js-sys = "0.3"
+web-sys = { version = "0.3", features = [
+  "WebGl2RenderingContext",
+  "WebGlActiveInfo",
+  "WebGlBuffer",
+  "WebGlContextAttributes",
+  "WebGlContextEvent",
+  "WebGlContextEventInit",
+  "WebGlFramebuffer",
+  "WebGlPowerPreference",
+  "WebGlProgram",
+  "WebGlQuery",
+  "WebGlRenderbuffer",
+  "WebGlRenderingContext",
+  "WebGlSampler",
+  "WebGlShader",
+  "WebGlShaderPrecisionFormat",
+  "WebGlSync",
+  "WebGlTexture",
+  "WebGlTransformFeedback",
+  "WebGlUniformLocation",
+  "WebGlVertexArrayObject",
+] }
 
 [lib]  
 crate-type = ["cdylib", "rlib"]

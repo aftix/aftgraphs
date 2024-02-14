@@ -1,9 +1,10 @@
-use crate::input::InputValue;
-use crate::ui::UiPlatform;
-use crate::{prelude::Ui, simulation::Simulation};
+use crate::input::{InputState, InputValue, Inputs};
+use crate::simulation::Simulation;
+use crate::ui::{Ui, UiPlatform};
 use async_mutex::Mutex;
 use std::collections::HashMap;
 use std::sync::Arc;
+use winit::window::Window;
 
 #[cfg(not(target_arch = "wasm32"))]
 mod linux;
@@ -200,6 +201,72 @@ impl Renderer {
                 out_img.lock().await.as_mut_slice(),
             )
             .await;
+        }
+    }
+
+    pub async fn draw_ui(&mut self, window: &Window, inputs: Inputs, state: InputState) {
+        let ui = self.ui.context_mut();
+
+        let frame = ui.frame();
+        inputs.render(frame, state).await;
+
+        let mut pass = self.render_pass.lock().await;
+        if pass.is_none() {
+            let surface = self.surface.as_ref().unwrap();
+            let frame = match surface.get_current_texture() {
+                Ok(frame) => frame,
+                Err(e) => {
+                    log::error!("aftgraphs::render::Renderer::draw_ui: dropped frame: {e:?}");
+                    return;
+                }
+            };
+            let view = frame
+                .texture
+                .create_view(&wgpu::TextureViewDescriptor::default());
+            let encoder = self
+                .device
+                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                    label: Some("aftgraphs::render::Renderer::draw_ui"),
+                });
+            *pass = Some(RendererPass {
+                encoder,
+                frame,
+                view,
+            });
+        }
+
+        {
+            let pass = unsafe { pass.as_mut().unwrap_unchecked() };
+            self.platform.prepare_render(frame, window);
+
+            let view = pass
+                .frame
+                .texture
+                .create_view(&wgpu::TextureViewDescriptor::default());
+            let mut render_pass = pass.encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("aftgraphs::render::Renderer::draw_ui"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Load,
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+            });
+
+            self.ui
+                .draw(&mut render_pass, &self.queue, &self.device)
+                .expect("Renderer::draw_ui: rendering failed");
+        }
+
+        {
+            let pass = unsafe { pass.take().unwrap_unchecked() };
+            self.queue.submit(Some(pass.encoder.finish()));
+            pass.frame.present();
         }
     }
 }

@@ -3,10 +3,14 @@ use anyhow::anyhow;
 use winit::window::Window;
 
 pub async fn init(window: &Window) -> anyhow::Result<Renderer> {
-    let mut size = window.inner_size();
-    size.width = size.width.max(1);
-    size.height = size.height.max(1);
+    log::debug!("aftgraphs::display::init: Initializing display");
 
+    let mut size = window.inner_size();
+    // wgpu minimum surface size is 4x4
+    size.width = size.width.max(4);
+    size.height = size.height.max(4);
+
+    log::debug!("aftgraphs::display::init: Creating surface");
     let instance = wgpu::Instance::default();
     let surface = unsafe {
         instance
@@ -22,6 +26,7 @@ pub async fn init(window: &Window) -> anyhow::Result<Renderer> {
         .await
         .expect("Failed to find adapter");
 
+    log::debug!("aftgraphs::display::init: Requesting rendering device");
     let (device, queue) = adapter
         .request_device(
             &wgpu::DeviceDescriptor {
@@ -34,6 +39,12 @@ pub async fn init(window: &Window) -> anyhow::Result<Renderer> {
         )
         .await
         .map_err(|err| anyhow!("wgpu::Adapter::request_device: {}", err))?;
+
+    log::debug!("aftgrahps::display::init: Adding wgpu error handler");
+    fn unhandled_error(error: wgpu::Error) {
+        log::error!("wgpu unhandled error: {error:?}");
+    }
+    device.on_uncaptured_error(Box::new(unhandled_error));
 
     let swapchain_capabilities = surface.get_capabilities(&adapter);
     let swapchain_format = swapchain_capabilities.formats[0];
@@ -48,7 +59,10 @@ pub async fn init(window: &Window) -> anyhow::Result<Renderer> {
         view_formats: vec![],
     };
 
+    log::debug!("aftgraphs::display::init: configuring surface");
     surface.configure(&device, &config);
+
+    log::info!("surface configured");
 
     let (ui, platform) = Ui::new(window, &device, &queue, swapchain_format);
     Ok(Renderer {

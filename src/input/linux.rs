@@ -87,7 +87,6 @@ impl Inputs {
             }
 
             let mut run = false;
-
             ui_window = ui_window.opened(&mut run).movable(true).resizable(true);
 
             let mut inputs: Vec<_> = block
