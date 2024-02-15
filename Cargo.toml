@@ -74,3 +74,13 @@ web-sys = { version="0.3", features = [
   "WebGlUniformLocation",
   "WebGlVertexArrayObject",
 ] }
+
+[profile.release]
+lto = true
+
+[profile.web-release]
+inherits = "release"
+opt-level = "s"
+strip = "debuginfo"
+panic = "abort"
+codegen-units = 1

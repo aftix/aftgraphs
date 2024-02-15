@@ -19,7 +19,7 @@ for dir in *; do
   [[ -f "$dir/Cargo.toml" ]] || continue
   cd "$dir" || exit
   if [[ $release -eq 1 ]]; then
-    cargo build --release --lib --target wasm32-unknown-unknown
+    cargo build --lib --target wasm32-unknown-unknown --profile web-release
   else
     cargo build --lib --target wasm32-unknown-unknown
   fi
@@ -27,7 +27,7 @@ for dir in *; do
 done
 
 if [[ $release -eq 1 ]]; then
-  targetDir="target/wasm32-unknown-unknown/release"
+  targetDir="target/wasm32-unknown-unknown/web-release"
 else
   targetDir="target/wasm32-unknown-unknown/debug"
 fi
