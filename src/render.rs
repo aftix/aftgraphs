@@ -60,7 +60,7 @@ impl Renderer {
     async fn display_render<T: Simulation>(
         &self,
         simulation: Arc<Mutex<T>>,
-        input_values: &HashMap<String, InputValue>,
+        input_values: &mut HashMap<String, InputValue>,
     ) {
         let surface = self.surface.as_ref().unwrap();
 
@@ -114,7 +114,7 @@ impl Renderer {
     async fn headless_render<T: Simulation>(
         &self,
         simulation: Arc<Mutex<T>>,
-        input_values: &HashMap<String, InputValue>,
+        input_values: &mut HashMap<String, InputValue>,
         out_img: &mut [u8],
     ) {
         let mut encoder = self
@@ -188,7 +188,7 @@ impl Renderer {
     pub async fn render<T: Simulation>(
         &self,
         simulation: Arc<Mutex<T>>,
-        input_values: &HashMap<String, InputValue>,
+        input_values: &mut HashMap<String, InputValue>,
         out_img: Arc<Mutex<Vec<u8>>>,
     ) {
         if !self.headless {

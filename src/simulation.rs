@@ -1,9 +1,9 @@
 use async_mutex::Mutex;
-use std::collections::HashMap;
 use std::rc::Rc;
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 use winit::{
-    event::{ElementState, Event, KeyEvent, WindowEvent},
+    dpi::{PhysicalPosition, PhysicalSize},
+    event::{Event, WindowEvent},
     event_loop::EventLoop,
     keyboard::{Key, NamedKey},
     window::Window,
@@ -13,14 +13,25 @@ use crate::block_on;
 use crate::input::{InputState, InputValue, Inputs};
 use crate::render::Renderer;
 
+pub use winit::event::{ElementState, KeyEvent, MouseButton};
+
+pub enum InputEvent {
+    Keyboard(KeyEvent),
+    /// f64 pair is (x, y) coordinates in [-1, 1] space
+    Mouse(ElementState, MouseButton, (f64, f64)),
+}
+
 pub trait Simulation: 'static {
     #[allow(async_fn_in_trait)]
     async fn render(
         &mut self,
         renderer: &Renderer,
         render_pass: wgpu::RenderPass<'_>,
-        inputs: &HashMap<String, InputValue>,
+        inputs: &mut HashMap<String, InputValue>,
     );
+
+    #[allow(async_fn_in_trait)]
+    async fn on_input(&mut self, event: InputEvent);
 
     fn new(renderer: &Renderer) -> Self;
 }
@@ -42,6 +53,17 @@ impl<T: Simulation> SimulationContext<T> {
         let simulation = Arc::new(Mutex::new(self.simulation));
         let input_values = InputState::default();
         let mut last_frame = web_time::Instant::now();
+        let mut cursor_position = PhysicalPosition::new(0.0, 0.0);
+
+        let mut window_size: PhysicalSize<f64> = {
+            let window = self.window.lock().await;
+            if let Some(window) = window.as_ref() {
+                let PhysicalSize { width, height } = window.inner_size();
+                PhysicalSize::new(width.into(), height.into())
+            } else {
+                PhysicalSize::new(4.0, 4.0)
+            }
+        };
 
         // On wasm you want to wait until the first resize event to render anything
         let mut recieved_resize = false;
@@ -60,6 +82,8 @@ impl<T: Simulation> SimulationContext<T> {
                         );
 
                         recieved_resize = true;
+                        let PhysicalSize { width, height } = size;
+                        window_size = PhysicalSize::new(width.into(), height.into());
 
                         let renderer = self.renderer.clone();
                         let window = self.window.clone();
@@ -102,6 +126,80 @@ impl<T: Simulation> SimulationContext<T> {
                     } => {
                         log::info!("aftgraphs::SimulationContext::run: Exit requested");
                         win_target.exit();
+                    }
+                    winit_event @ Event::WindowEvent {
+                        event: WindowEvent::KeyboardInput { .. } , ..
+                    } => {
+                        log::debug!("aftgraphs::SimulationContext::run: KeyboardEvent event found on window");
+
+                        let event = match &winit_event {
+                            Event::WindowEvent { event: WindowEvent::KeyboardInput { event, .. }, .. } => event.clone()
+                            ,
+                            _ => unreachable!(),
+                        };
+
+                        let simulation = simulation.clone();
+                        let window = self.window.clone();
+                        let renderer = self.renderer.clone();
+
+                        block_on(async move {
+                            let mut simulation = simulation.lock().await;
+                            simulation.on_input(InputEvent::Keyboard(event)).await;
+
+                            let window = window.lock().await;
+                            if let Some(window) = window.as_ref() {
+                                let mut renderer = renderer.lock().await;
+                                renderer.handle_event(window, &winit_event);
+                            }
+                        });
+                    }
+                    winit_event @ Event::WindowEvent { event: WindowEvent::CursorMoved { .. }, .. } => {
+                        log::debug!("aftgraphs::SimulationContext::run: CursorMoved event found on window");
+
+                        cursor_position = match &winit_event {
+                          Event::WindowEvent { event: WindowEvent::CursorMoved { position, .. }, .. }  => *position,
+                          _ => unreachable!(),
+                        };
+
+                        let window = self.window.clone();
+                        let renderer = self.renderer.clone();
+
+                        block_on(async move {
+                            let window = window.lock().await;
+                            if let Some(window) = window.as_ref() {
+                                let mut renderer = renderer.lock().await;
+                                renderer.handle_event(window, &winit_event)
+                            }
+                        });
+                    }
+                    winit_event @ Event::WindowEvent {
+                        event: WindowEvent::MouseInput { .. }, ..
+                    } => {
+                        log::debug!("aftgraphs::SimulationContext::run: MouseInput event found on window");
+
+                        let (state, button) = match &winit_event {
+                            Event::WindowEvent { event: WindowEvent::MouseInput { state, button, .. }, .. } => (*state, *button),
+                            _ => unreachable!(),
+                        };
+
+                        // Convert mouse coordinates to screen space
+                        let position = (cursor_position.x / window_size.width, cursor_position.y / window_size.height);
+                        let position = (position.0 * 2.0 - 1.0, 1.0 - position.1 * 2.0);
+
+                        let simulation = simulation.clone();
+                        let window = self.window.clone();
+                        let renderer = self.renderer.clone();
+
+                        block_on(async move {
+                            let mut simulation = simulation.lock().await;
+                            simulation.on_input(InputEvent::Mouse(state, button, position)).await;
+
+                            let window = window.lock().await;
+                            if let Some(window) = window.as_ref() {
+                                let mut renderer = renderer.lock().await;
+                                renderer.handle_event(window, &winit_event)
+                            }
+                        });
                     }
                     Event::NewEvents(_) => {
                         log::debug!(
@@ -153,11 +251,11 @@ impl<T: Simulation> SimulationContext<T> {
                                 log::debug!(
                                     "aftgraphs::SimulationContext::run: Rendering simulation"
                                 );
-                                let input_values = input_values.lock().await;
+                                let mut input_values = input_values.lock().await;
                                 renderer
                                     .lock()
                                     .await
-                                    .render(simulation.clone(), input_values.as_ref(), out_img)
+                                    .render(simulation.clone(), input_values.as_mut(), out_img)
                                     .await;
                             }
 

@@ -13,7 +13,9 @@ pub mod prelude {
         BindGroupLayoutBuilder, RenderPass, RenderPipeline, RenderPipelineBuilder, Renderer,
         ShaderBuilder, BINDING_UNIFORM_BUFFER,
     };
-    pub use crate::simulation::{Simulation, SimulationContext};
+    pub use crate::simulation::{
+        ElementState, InputEvent, KeyEvent, MouseButton, Simulation, SimulationContext,
+    };
     pub use crate::ui::{Ui, UiFrame};
     pub use crate::uniform::{Uniform, UniformBuilder};
     pub use async_mutex::Mutex;
