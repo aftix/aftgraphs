@@ -2,7 +2,7 @@ use async_mutex::Mutex;
 use std::{marker::PhantomData, rc::Rc, sync::Arc};
 use winit::{event_loop::EventLoop, window::Window};
 
-use super::Simulation;
+use super::{InputEvent, Simulation};
 use crate::render::Renderer;
 
 mod sealed {
@@ -12,7 +12,7 @@ mod sealed {
 pub trait BuilderState: sealed::Sealed {}
 
 pub struct SimulationBuilder<T: Simulation, S: BuilderState> {
-    event_loop: Option<EventLoop<()>>,
+    event_loop: Option<EventLoop<InputEvent>>,
     window: Arc<Mutex<Option<Window>>>,
     renderer: Option<Rc<Mutex<Renderer>>>,
     headless: bool,
@@ -46,7 +46,10 @@ impl<T: Simulation> SimulationBuilder<T, BuilderInit> {
         }
     }
 
-    pub fn event_loop(self, event_loop: EventLoop<()>) -> SimulationBuilder<T, BuilderComplete> {
+    pub fn event_loop(
+        self,
+        event_loop: EventLoop<InputEvent>,
+    ) -> SimulationBuilder<T, BuilderComplete> {
         SimulationBuilder {
             event_loop: Some(event_loop),
             simulation: self.simulation,

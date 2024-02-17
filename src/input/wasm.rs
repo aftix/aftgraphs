@@ -1,10 +1,16 @@
 use super::*;
 use crate::ui::{Ui, UiFrame};
+use lazy_static::lazy_static;
+use std::collections::hash_map::Entry;
 use wasm_bindgen::JsCast;
 use web_sys::{
     self, Element, HtmlFieldSetElement, HtmlFormElement, HtmlInputElement, HtmlLabelElement,
     HtmlLegendElement, Node,
 };
+
+lazy_static! {
+    static ref INPUT_STATE: Mutex<HashMap<String, InputValue>> = Mutex::new(HashMap::new());
+}
 
 impl Inputs {
     fn create_input((name, input): (&str, &Input), scope: &str, ui: &mut Ui) -> Element {
@@ -147,6 +153,7 @@ impl Inputs {
         scope: &str,
         ui: &mut Ui,
         state: &mut HashMap<String, InputValue>,
+        old_state: &mut HashMap<String, InputValue>,
     ) {
         let input_name = format!("{}-{}", scope, name);
         let sanitized_name = input_name.replace(' ', "_");
@@ -157,7 +164,23 @@ impl Inputs {
                     if let Ok(checkbox) = checkbox.dyn_into::<HtmlInputElement>() {
                         let val = checkbox.checked();
                         let key = sanitized_name.replace('_', " ").replace('-', ".");
-                        state.insert(key, InputValue::CHECKBOX(val));
+
+                        let old_entry = old_state.entry(key.clone());
+                        let state_val = state.insert(key.clone(), InputValue::CHECKBOX(val));
+                        if let Some(InputValue::CHECKBOX(state_val)) = state_val {
+                            match &old_entry {
+                                Entry::Occupied(old_entry) => {
+                                    if *old_entry.get() != InputValue::CHECKBOX(state_val) {
+                                        checkbox.set_checked(state_val);
+                                        state.insert(key, InputValue::CHECKBOX(state_val));
+                                    }
+                                }
+                                Entry::Vacant(_) => {
+                                    checkbox.set_checked(state_val);
+                                    state.insert(key, InputValue::CHECKBOX(state_val));
+                                }
+                            }
+                        }
                     } else {
                         log::error!("Element for id {} is not input element", sanitized_name);
                     }
@@ -170,7 +193,23 @@ impl Inputs {
                     if let Ok(range) = range.dyn_into::<HtmlInputElement>() {
                         let val = range.value_as_number();
                         let key = sanitized_name.replace('_', " ").replace('-', ".");
-                        state.insert(key, InputValue::SLIDER(val));
+
+                        let old_entry = old_state.entry(key.clone());
+                        let state_val = state.insert(key.clone(), InputValue::SLIDER(val));
+                        if let Some(InputValue::SLIDER(state_val)) = state_val {
+                            match &old_entry {
+                                Entry::Occupied(old_entry) => {
+                                    if *old_entry.get() != InputValue::SLIDER(state_val) {
+                                        range.set_value_as_number(state_val);
+                                        state.insert(key, InputValue::SLIDER(state_val));
+                                    }
+                                }
+                                Entry::Vacant(_) => {
+                                    range.set_value_as_number(state_val);
+                                    state.insert(key, InputValue::SLIDER(state_val));
+                                }
+                            }
+                        }
                     } else {
                         log::error!("Element for id {} is not input element", sanitized_name);
                     }
@@ -182,13 +221,18 @@ impl Inputs {
                 let scope = sanitized_name;
 
                 for input in inputs.iter().map(|(k, v)| (k.as_str(), v)) {
-                    Self::get_input(input, scope.as_str(), ui, state);
+                    Self::get_input(input, scope.as_str(), ui, state, old_state);
                 }
             }
         }
     }
 
-    pub fn get_inputs(&self, ui: &mut Ui, state: &mut HashMap<String, InputValue>) {
+    pub fn get_inputs(
+        &self,
+        ui: &mut Ui,
+        state: &mut HashMap<String, InputValue>,
+        old_state: &mut HashMap<String, InputValue>,
+    ) {
         for (idx, block) in self.blocks.iter().enumerate() {
             let scope = if let Some(ref title) = block.name {
                 title.clone()
@@ -197,7 +241,7 @@ impl Inputs {
             };
 
             for input in block.inputs.iter().map(|(k, v)| (k.as_str(), v)) {
-                Self::get_input(input, scope.as_str(), ui, state);
+                Self::get_input(input, scope.as_str(), ui, state, old_state);
             }
         }
     }
@@ -208,6 +252,8 @@ impl Inputs {
         }
 
         let mut values = state.lock().await;
-        self.get_inputs(ui, &mut values.guard);
+        let mut old_values = INPUT_STATE.lock().await;
+        self.get_inputs(ui, &mut values.guard, &mut old_values);
+        *old_values = values.guard.clone();
     }
 }

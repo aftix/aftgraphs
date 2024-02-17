@@ -50,6 +50,7 @@ dependencies = [
  "imgui",
  "imgui-wgpu",
  "imgui-winit-support",
+ "lazy_static",
  "log",
  "pollster",
  "rav1e",

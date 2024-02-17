@@ -37,7 +37,7 @@ pub trait Simulation: 'static {
 }
 
 pub struct SimulationContext<T: Simulation> {
-    event_loop: EventLoop<()>,
+    event_loop: EventLoop<InputEvent>,
     renderer: Rc<Mutex<Renderer>>,
     window: Arc<Mutex<Option<Window>>>,
     simulation: T,
@@ -73,6 +73,15 @@ impl<T: Simulation> SimulationContext<T> {
             .run(move |event, win_target| {
                 win_target.set_control_flow(winit::event_loop::ControlFlow::Poll);
                 match event {
+                    Event::UserEvent(input_event) => {
+                        log::debug!("aftgraphs::SimulationContext::run: UserEvent event found on window");
+
+                        let simulation = simulation.clone();
+                        block_on(async move {
+                            let mut simulation = simulation.lock().await;
+                            simulation.on_input(input_event).await;
+                        });
+                    }
                     Event::WindowEvent {
                         event: WindowEvent::Resized(size),
                         ..
@@ -269,6 +278,7 @@ impl<T: Simulation> SimulationContext<T> {
                     event => {
                         let renderer = self.renderer.clone();
                         let window = self.window.clone();
+                        
                         block_on(async move {
                             let mut renderer = renderer.lock().await;
                             let window = window.lock().await;

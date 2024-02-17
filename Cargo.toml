@@ -38,12 +38,14 @@ version = "0.29.3"
 features = ["rwh_05", "wayland", "x11"]
 
 [target.'cfg(target_family = "wasm")'.dependencies]
+lazy_static = "1.4"
 console_log = { version="0.2", features=["color"] }
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
 console_error_panic_hook = "0.1"
 web-sys = { version="0.3", features = [
   "Document",
+  "DomRect",
   "Element",
   "HtmlElement",
   "HtmlFormElement",
@@ -52,6 +54,8 @@ web-sys = { version="0.3", features = [
   "HtmlFieldSetElement",
   "HtmlLegendElement",
   "HtmlCanvasElement",
+  "EventTarget",
+  "PointerEvent",
   "Node",
   "WebGl2RenderingContext",
   "WebGlActiveInfo",

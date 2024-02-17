@@ -1,10 +1,8 @@
+use crate::simulation::InputEvent;
 use async_mutex::Mutex;
 use core::future::Future;
 use std::sync::Arc;
-use winit::{
-    event_loop::{EventLoop, EventLoopBuilder},
-    window::Window,
-};
+use winit::{event_loop::EventLoopBuilder, window::Window};
 
 use crate::input::Inputs;
 use crate::simulation::{Simulation, SimulationBuilder};
@@ -20,7 +18,7 @@ pub fn block_on<F: Future<Output = ()> + 'static>(fut: F) {
 pub fn sim_main<T: Simulation>(inputs: Inputs) {
     init_platform();
 
-    let event_loop: EventLoop<()> = EventLoopBuilder::default()
+    let event_loop = EventLoopBuilder::<InputEvent>::with_user_event()
         .build()
         .expect("failed to build event loop");
 
