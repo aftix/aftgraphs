@@ -64,6 +64,8 @@ pub async fn init(window: &Window) -> anyhow::Result<Renderer> {
 
     log::info!("surface configured");
 
+    let aspect_ratio = size.width as f64 / size.height as f64;
+
     let (ui, platform) = Ui::new(window, &device, &queue, swapchain_format);
     Ok(Renderer {
         headless: false,
@@ -79,5 +81,6 @@ pub async fn init(window: &Window) -> anyhow::Result<Renderer> {
         buffer: None,
         platform,
         ui,
+        aspect_ratio,
     })
 }

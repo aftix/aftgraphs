@@ -1,5 +1,5 @@
 [workspace]
-members = [ "aftgraphs-macros","triangle" ]
+members = [ "aftgraphs-macros", "particles","triangle" ]
 exclude = [ "imgui-rs", "imgui-wgpu" ]
 
 [package]
@@ -23,6 +23,7 @@ copypasta = "0.10"
 bytemuck = { version = "1.14", features=["derive"] }
 smallvec = "1.13"
 web-time = "1.0"
+num-traits = "0.2"
 
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
 clap = "4.4"

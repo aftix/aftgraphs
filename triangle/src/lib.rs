@@ -19,23 +19,17 @@ struct TriangleSimulation {
 
 impl TriangleSimulation {
     fn update_inputs(&mut self, renderer: &Renderer, inputs: &HashMap<String, InputValue>) {
-        if let Some(val) = inputs.get("triangle inputs.rotation") {
-            if let &InputValue::SLIDER(val) = val {
-                let val = (val as f32).to_radians();
-                self.rotation.update(renderer, Float(val));
-            }
+        if let Some(&InputValue::SLIDER(val)) = inputs.get("triangle inputs.rotation") {
+            let val = (val as f32).to_radians();
+            self.rotation.update(renderer, Float(val));
         }
 
-        if let Some(val) = inputs.get("triangle inputs.color") {
-            if let &InputValue::SLIDER(val) = val {
-                self.color.update(renderer, Float(val as f32));
-            }
+        if let Some(&InputValue::SLIDER(val)) = inputs.get("triangle inputs.color") {
+            self.color.update(renderer, Float(val as f32));
         }
 
-        if let Some(val) = inputs.get("triangle inputs.mouseInput") {
-            if let &InputValue::CHECKBOX(val) = val {
-                self.mouse_enabled = val;
-            }
+        if let Some(&InputValue::CHECKBOX(val)) = inputs.get("triangle inputs.mouseInput") {
+            self.mouse_enabled = val;
         }
     }
 }
@@ -57,7 +51,7 @@ impl Simulation for TriangleSimulation {
             );
         }
 
-        render_pass.set_pipeline(&self.pipeline.pipeline);
+        render_pass.set_pipeline(&self.pipeline);
         render_pass.set_bind_group(0, self.rotation.bind_group(), &[]);
         render_pass.set_bind_group(1, self.color.bind_group(), &[]);
         render_pass.draw(0..3, 0..1);

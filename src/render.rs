@@ -3,6 +3,7 @@ use crate::simulation::Simulation;
 use crate::ui::{Ui, UiPlatform};
 use async_mutex::Mutex;
 use std::collections::HashMap;
+use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
 use winit::window::Window;
 
@@ -40,6 +41,44 @@ pub struct RenderPipeline {
     pub layout: wgpu::PipelineLayout,
 }
 
+impl AsRef<wgpu::RenderPipeline> for RenderPipeline {
+    fn as_ref(&self) -> &wgpu::RenderPipeline {
+        &self.pipeline
+    }
+}
+
+impl AsRef<wgpu::PipelineLayout> for RenderPipeline {
+    fn as_ref(&self) -> &wgpu::PipelineLayout {
+        &self.layout
+    }
+}
+
+impl AsMut<wgpu::RenderPipeline> for RenderPipeline {
+    fn as_mut(&mut self) -> &mut wgpu::RenderPipeline {
+        &mut self.pipeline
+    }
+}
+
+impl AsMut<wgpu::PipelineLayout> for RenderPipeline {
+    fn as_mut(&mut self) -> &mut wgpu::PipelineLayout {
+        &mut self.layout
+    }
+}
+
+impl Deref for RenderPipeline {
+    type Target = wgpu::RenderPipeline;
+
+    fn deref(&self) -> &Self::Target {
+        &self.pipeline
+    }
+}
+
+impl DerefMut for RenderPipeline {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.pipeline
+    }
+}
+
 pub struct Renderer {
     pub headless: bool,
     pub instance: wgpu::Instance,
@@ -54,6 +93,7 @@ pub struct Renderer {
     pub buffer: Option<wgpu::Buffer>,
     pub platform: UiPlatform,
     pub ui: Ui,
+    pub aspect_ratio: f64,
 }
 
 impl Renderer {

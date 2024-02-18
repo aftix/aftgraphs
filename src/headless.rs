@@ -28,6 +28,8 @@ pub async fn init(mut size: (u32, u32)) -> anyhow::Result<Renderer> {
         .await
         .map_err(|err| anyhow!("wgpu::Adapter::request_device: {}", err))?;
 
+    let aspect_ratio = size.0 as f64 / size.1 as f64;
+
     let texture_desc = wgpu::TextureDescriptor {
         size: wgpu::Extent3d {
             width: size.0,
@@ -71,5 +73,6 @@ pub async fn init(mut size: (u32, u32)) -> anyhow::Result<Renderer> {
         buffer: Some(buffer),
         platform,
         ui,
+        aspect_ratio,
     })
 }

@@ -63,22 +63,39 @@ fn main() {
 cat > src/lib.rs <<<"
 use aftgraphs::prelude::*;
 use aftgraphs_macros::sim_main;
+use std::collections::HashMap;
 
-#[derive(Default, Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Hash)]
-struct $SIMNAME;
+struct $SIMNAME {
+  pipeline: RenderPipeline,
+}
 
 impl Simulation for $SIMNAME {
   fn new(renderer: &Renderer) -> Self {
     // CREATE INSTANCE HERE
   }
 
-  async fn render(&mut self, renderer: Arc<Mutex<Renderer>>, out_img: Arc<Mutex<Vec<u8>>>) {
-    let renderer = renderer.lock().await;
+  async fn on_input(&mut self, _event: InputEvent) {
+    // IMPLEMENT KEYBOARD/MOUSE INPUT HERE
+  }
+
+  async fn render(
+      &mut self,
+      renderer: &Renderer,
+      render_pass: RenderPass<'_>,
+      inputs: &mut HashMap<String, InputValue>,
+  ) {
     // RENDER HERE
   }
 }
 
-sim_main! { \"/res/$NAME.toml\", SIMNAME }
+sim_main! { \"/res/$NAME.toml\", $SIMNAME }
+"
+
+mkdir -p res/
+
+cat > "res/$NAME.toml" <<<"
+[simulation]
+name = \"$NAME\"
 "
 
 popd >/dev/null || exit 3

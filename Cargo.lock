@@ -52,6 +52,7 @@ dependencies = [
  "imgui-winit-support",
  "lazy_static",
  "log",
+ "num-traits",
  "pollster",
  "rav1e",
  "serde",
@@ -1743,6 +1744,19 @@ dependencies = [
  "redox_syscall 0.4.1",
  "smallvec",
  "windows-targets 0.48.5",
+]
+
+[[package]]
+name = "particles"
+version = "0.1.0"
+dependencies = [
+ "aftgraphs",
+ "aftgraphs-macros",
+ "js-sys",
+ "wasm-bindgen",
+ "web-sys",
+ "wgpu",
+ "winit",
 ]
 
 [[package]]

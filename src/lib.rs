@@ -6,6 +6,7 @@ pub mod render;
 pub mod simulation;
 pub mod ui;
 pub mod uniform;
+pub mod vertex;
 
 pub mod prelude {
     pub use crate::input::{InputState, InputValue};
@@ -18,10 +19,15 @@ pub mod prelude {
     };
     pub use crate::ui::{Ui, UiFrame};
     pub use crate::uniform::{Uniform, UniformBuilder};
+    pub use crate::vertex::{IndexBuffer, VertexBuffer, VertexBufferBuilder, PRIMITIVE_POINTS};
+
     pub use async_mutex::Mutex;
     pub use bytemuck;
     pub use std::sync::Arc;
-    pub use wgpu::{self, include_wgsl, BindGroupLayoutEntry, BindingType, ShaderStages};
+    pub use wgpu::{
+        self, include_wgsl, BindGroupLayoutEntry, BindingType, BufferAddress, IndexFormat,
+        ShaderStages, VertexAttribute, VertexFormat,
+    };
 }
 
 #[cfg(not(target_arch = "wasm32"))]

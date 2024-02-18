@@ -108,6 +108,7 @@ impl<T: Simulation> SimulationContext<T> {
                                     .as_ref()
                                     .unwrap()
                                     .configure(&renderer.device, renderer.config.as_ref().unwrap());
+                                renderer.aspect_ratio = size.width as f64 / size.height as f64;
                             }
 
                             if let Some(win) = window.lock().await.as_ref() {
