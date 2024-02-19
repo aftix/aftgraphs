@@ -153,7 +153,7 @@ impl<P: UiPlatform> Renderer<P> {
         _simulation: Arc<Mutex<T>>,
         _input_values: &mut HashMap<String, InputValue>,
     ) {
-        panic!("headless rendering not supported on WASM")
+        panic!("aftgraphs::render::Renderer::render_headless: headless rendering not supported on WASM")
     }
 
     #[cfg(not(target_arch = "wasm32"))]
@@ -215,67 +215,91 @@ impl<P: UiPlatform> Renderer<P> {
         }
     }
 
-    pub async fn render_headless_finish(&self, out_img: &mut Vec<u8>) {
+    pub async fn render_headless_finish(&self, out_img: &mut Vec<u8>) -> anyhow::Result<()> {
         let u32_size = std::mem::size_of::<u32>() as u32;
-        let texture_size = self.texture.as_ref().map(|tex| tex.size()).unwrap();
+        let texture = self.texture.as_ref().ok_or_else(|| {
+            log::error!(
+                "aftgraphs::render::Renderer::render_headless_finish: no texture initialized"
+            );
+            anyhow::anyhow!(
+                "aftgraphs::render::Renderer::render_headless_finish: no texture initialized"
+            )
+        })?;
+        let texture_size = texture.size();
 
         let mut pass = self.render_pass.lock().await;
-        let pass = pass.take();
-
-        if let Some(mut pass) = pass {
-            let bytes_per_row = u32_size * texture_size.width;
-            let missing_bytes = wgpu::COPY_BYTES_PER_ROW_ALIGNMENT
-                - (bytes_per_row % wgpu::COPY_BYTES_PER_ROW_ALIGNMENT);
-            let bytes_per_row = bytes_per_row + missing_bytes;
-
-            pass.encoder.copy_texture_to_buffer(
-                wgpu::ImageCopyTexture {
-                    aspect: wgpu::TextureAspect::All,
-                    texture: self.texture.as_ref().unwrap(),
-                    mip_level: 0,
-                    origin: wgpu::Origin3d::ZERO,
-                },
-                wgpu::ImageCopyBuffer {
-                    buffer: self.buffer.as_ref().unwrap(),
-                    layout: wgpu::ImageDataLayout {
-                        offset: 0,
-                        bytes_per_row: Some(bytes_per_row),
-                        rows_per_image: Some(texture_size.height),
-                    },
-                },
-                texture_size,
-            );
-
-            self.queue.submit(Some(pass.encoder.finish()));
-
-            if let Some(ref buffer) = self.buffer {
-                if out_img.len() != buffer.size() as usize {
-                    out_img.resize(buffer.size() as usize, 0);
-                }
-
-                {
-                    let buffer_slice = buffer.slice(..);
-                    let (tx, rx) = futures_intrusive::channel::shared::oneshot_channel();
-                    buffer_slice.map_async(wgpu::MapMode::Read, move |result| {
-                        tx.send(result).unwrap();
-                    });
-                    self.device.poll(wgpu::Maintain::Wait);
-                    rx.receive().await.unwrap().unwrap();
-
-                    let data = buffer_slice.get_mapped_range();
-                    out_img.clone_from_slice(&data[..]);
-                }
-
-                buffer.unmap();
-            } else {
-                log::error!("aftgraphs::render::Renderer::render_headless_finish called with None Renderer::buffer");
-            }
-        } else {
+        let mut pass = pass.take().ok_or_else(|| {
             log::error!("aftgraphs::render::Renderer::render_headless_finish called with None Renderer::render_pass");
+            anyhow::anyhow!("aftgraphs::render::Renderer::render_headless_finish called with None Renderer::render_pass")
+        })?;
+
+        let buffer = self.buffer.as_ref().ok_or_else(|| {
+            log::error!("aftgraphs::render::Renderer::render_headless_finish called with None Renderer::buffer");
+            anyhow::anyhow!("aftgraphs::render::Renderer::render_headless_finish called with None Renderer::buffer")
+        })?;
+
+        let bytes_per_row = u32_size * texture_size.width;
+        let missing_bytes = wgpu::COPY_BYTES_PER_ROW_ALIGNMENT
+            - (bytes_per_row % wgpu::COPY_BYTES_PER_ROW_ALIGNMENT);
+        let bytes_per_row = bytes_per_row + missing_bytes;
+
+        pass.encoder.copy_texture_to_buffer(
+            wgpu::ImageCopyTexture {
+                aspect: wgpu::TextureAspect::All,
+                texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+            },
+            wgpu::ImageCopyBuffer {
+                buffer,
+                layout: wgpu::ImageDataLayout {
+                    offset: 0,
+                    bytes_per_row: Some(bytes_per_row),
+                    rows_per_image: Some(texture_size.height),
+                },
+            },
+            texture_size,
+        );
+
+        self.queue.submit(Some(pass.encoder.finish()));
+
+        if out_img.len() != buffer.size() as usize {
+            out_img.resize(buffer.size() as usize, 0);
         }
+
+        {
+            let buffer_slice = buffer.slice(..);
+            let (tx, rx) = futures_intrusive::channel::shared::oneshot_channel();
+            buffer_slice.map_async(wgpu::MapMode::Read, move |result| {
+                tx.send(result).expect("aftgraphs::render::Renderer::render_headless_finish: map_async closure failed to send");
+            });
+            self.device.poll(wgpu::Maintain::Wait);
+            rx.receive().await.ok_or_else(|| {
+                log::error!(
+                    "aftgraphs::render::Renderer::render_headless_finish channel is closed"
+                );
+                anyhow::anyhow!(
+                    "aftgraphs::render::Renderer::render_headless_finish channel is closed"
+                )
+            })?.map_err(|e| {
+                    log::error!("aftgraphs::render::Renderer::render_headless_finish channel failed to receive: {e:?}");
+                    anyhow::anyhow!("aftgraphs::render::Renderer::render_headless_finish channel failed to receive: {e:?}")
+                })?;
+
+            let data = buffer_slice.get_mapped_range();
+            out_img.clone_from_slice(&data[..]);
+        }
+
+        buffer.unmap();
+        Ok(())
     }
 
-    pub async fn draw_ui(&mut self, window: Option<&Window>, inputs: &Inputs, state: InputState) {
+    pub async fn draw_ui(
+        &mut self,
+        window: Option<&Window>,
+        inputs: &Inputs,
+        state: InputState,
+    ) -> anyhow::Result<()> {
         let ui = self.ui.context_mut();
 
         let frame = ui.new_frame();
@@ -283,14 +307,19 @@ impl<P: UiPlatform> Renderer<P> {
 
         let mut pass = self.render_pass.lock().await;
         if pass.is_none() {
-            let surface = self.surface.as_ref().unwrap();
+            let surface =  self.surface.as_ref().ok_or_else(|| {
+                log::error!("aftgraphs::render::Renderer::draw_ui: called without a RendererPass and no Surface");
+                anyhow::anyhow!("aftgraphs::render::Renderer::draw_ui: called without a RendererPass and no Surface")
+            })?;
+
             let frame = match surface.get_current_texture() {
                 Ok(frame) => frame,
                 Err(e) => {
-                    log::error!("aftgraphs::render::Renderer::draw_ui: dropped frame: {e:?}");
-                    return;
+                    log::warn!("aftgraphs::render::Renderer::draw_ui: dropped frame: {e:?}");
+                    return Ok(());
                 }
             };
+
             let view = frame
                 .texture
                 .create_view(&wgpu::TextureViewDescriptor::default());
@@ -312,13 +341,14 @@ impl<P: UiPlatform> Renderer<P> {
                 self.platform.prepare_render(frame, window);
             }
 
-            let view = if let Some(ref view) = pass.view {
-                view
-            } else {
-                self.texture_view
-                    .as_ref()
-                    .expect("headless rendering without Renderer texture_view")
-            };
+            let view = pass
+                .view
+                .as_ref()
+                .map_or(self.texture_view.as_ref(), Option::Some)
+                .ok_or_else(|| {
+                    log::error!("aftgraphs::render::Renderer::draw_ui: headless rendering without Renderer texture_view");
+                    anyhow::anyhow!("aftgraphs::render::Renderer::draw_ui: headless rendering without Renderer texture_view")
+                })?;
 
             let mut render_pass = pass.encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("aftgraphs::render::Renderer::draw_ui"),
@@ -337,7 +367,7 @@ impl<P: UiPlatform> Renderer<P> {
 
             self.ui
                 .draw(&mut render_pass, &self.queue, &self.device)
-                .expect("Renderer::draw_ui: rendering failed");
+                .map_err(|e| anyhow::anyhow!("aftgraphs::render::Renderer::draw_ui: {e}"))?;
         }
 
         if !self.headless {
@@ -347,5 +377,7 @@ impl<P: UiPlatform> Renderer<P> {
                 frame.present();
             }
         }
+
+        Ok(())
     }
 }

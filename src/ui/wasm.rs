@@ -61,7 +61,7 @@ impl Ui {
         _render_pass: &mut wgpu::RenderPass<'_>,
         _queue: &wgpu::Queue,
         _device: &wgpu::Device,
-    ) -> Option<()> {
-        Some(())
+    ) -> anyhow::Result<()> {
+        Ok(())
     }
 }

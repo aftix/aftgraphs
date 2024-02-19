@@ -15,9 +15,10 @@ pub struct UiWinitPlatform(WinitPlatform);
 
 impl UiPlatform for UiWinitPlatform {
     fn prepare_frame(&mut self, ui: &mut Ui, window: &Window) {
-        self.0
-            .prepare_frame(ui.0.io_mut(), window)
-            .expect("aftgraphs::ui::UiPlatform::prepare_frame: Enexpected failure");
+        if let Err(e) = self.0.prepare_frame(ui.0.io_mut(), window) {
+            log::error!("aftgraphs::ui::UiWinitPlatform::prepare_frame: imgui context error: {e}");
+            panic!("aftgraphs::ui::UiWinitPlatform::prepare_frame: imgui context error: {e}");
+        }
     }
 
     fn prepare_render(&mut self, frame: &mut imgui::Ui, window: &Window) {
@@ -31,15 +32,15 @@ impl UiPlatform for UiWinitPlatform {
 
 impl UiPlatform for () {
     fn prepare_frame(&mut self, _ui: &mut Ui, _window: &Window) {
-        panic!("Do not call any platform functions on headless")
+        panic!("aftgraphs::ui: Illegal call to UiPlatform::prepare_frame in headless mode")
     }
 
     fn prepare_render(&mut self, _frame: &mut imgui::Ui, _window: &Window) {
-        panic!("Do not call any platform functions on headless")
+        panic!("aftgraphs::ui: Illegal call to UiPlatform::prepare_render in headless mode")
     }
 
     fn handle_event<T>(&mut self, _ui: &mut Ui, _window: &Window, _event: &Event<T>) {
-        panic!("Do not call any platform functions on headless")
+        panic!("aftgraphs::ui: Illegal call to UiPlatform::handle_event in headless mode")
     }
 }
 
@@ -91,7 +92,10 @@ impl Ui {
             let dpi_mode = if let Ok(factor) = std::env::var("IMGUI_FORCE_DPI_FACTOR") {
                 match factor.parse::<f64>() {
                     Ok(f) => HiDpiMode::Locked(f),
-                    Err(e) => panic!("Invalid winit scaling factor: {}", e),
+                    Err(e) => {
+                        log::error!("aftgraphs::ui::new: Invalid winit scaling factor: {e}");
+                        panic!("aftgraphs::ui::new: Invalid winit scaling factor: {e}")
+                    }
                 }
             } else {
                 HiDpiMode::Default
@@ -103,7 +107,7 @@ impl Ui {
         if let Some(clipboard) = ClipboardSupport::new() {
             ctx.set_clipboard_backend(clipboard);
         } else {
-            log::error!("Failed to initialize clipboard backend");
+            log::warn!("aftgraphs::ui::new: Failed to initialize clipboard backend");
         }
 
         let font_size = 14.0;
@@ -137,12 +141,6 @@ impl Ui {
     ) -> (Self, ()) {
         let mut ctx = Context::create();
         ctx.set_ini_filename(None);
-
-        if let Some(clipboard) = ClipboardSupport::new() {
-            ctx.set_clipboard_backend(clipboard);
-        } else {
-            log::error!("Failed to initialize clipboard backend");
-        }
 
         let font_size = 14.0;
         ctx.fonts().add_font(&[FontSource::TtfData {

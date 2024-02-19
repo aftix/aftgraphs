@@ -75,50 +75,59 @@ impl<T: Simulation, P: UiPlatform> SimulationBuilder<T, P, BuilderInit> {
 
 impl<T: Simulation> SimulationBuilder<T, (), BuilderComplete> {
     #[cfg(not(target_arch = "wasm32"))]
-    pub async fn build_headless(self) -> super::SimulationContext<T, ()> {
+    pub async fn build_headless(self) -> anyhow::Result<super::SimulationContext<T, ()>> {
         log::info!("aftgraphs::simulation::SimulationBuilder: Building headless renderer");
 
-        let size = if let Some(size) = self.headless {
-            size
-        } else {
-            panic!("called headlesses simulation builder in display mode")
-        };
+        let size = self.headless.ok_or_else(|| {
+            log::error!("aftgraphs::simulation::SimulationBuilder::build_headless: building headless renderer in display mode");
+            anyhow::anyhow!("aftgraphs::simulation::SimulationBuilder::build_headless: building headless renderer in display mode")
+        })?;
 
-        let renderer = crate::headless::init(size)
-            .await
-            .expect("SimulationBuilder::build: Failed to init headless mode");
+        let renderer = crate::headless::init(size).await.map_err(|e| {
+            anyhow::anyhow!("aftgraphs::simulation::SimulationBuilder::build_headless: {e}")
+        })?;
 
-        log::info!("Build simulation");
-        super::SimulationContext {
+        if self.event_loop.is_some() {
+            log::error!("aftgraphs::simulation::SimulationContext::build_headless: building headless renderer with an event loop");
+            anyhow::bail!("aftgraphs::simulation::SimulationContext::build_headless: building headless renderer with an event loop");
+        }
+
+        Ok(super::SimulationContext {
             simulation: <T as Simulation>::new(&renderer),
             event_loop: self.event_loop,
             renderer: Rc::new(Mutex::new(renderer)),
             window: self.window,
-        }
+        })
     }
 }
 
 impl<T: Simulation> SimulationBuilder<T, UiWinitPlatform, BuilderComplete> {
-    pub async fn build(self) -> super::SimulationContext<T, UiWinitPlatform> {
+    pub async fn build(self) -> anyhow::Result<super::SimulationContext<T, UiWinitPlatform>> {
         log::info!("aftgraphs::simulation::SimulationBuilder: Building display renderer");
+
         let renderer = {
             let window = self.window.lock().await;
-            if let Some(window) = window.as_ref() {
-                crate::display::init(window)
-                    .await
-                    .expect("SimulationBuilder::build: Failed to init display mode")
-            } else {
-                panic!("SimulationBuilder::build: Display mode requires window set in SimulationBuilder")
-            }
+            let window = window.as_ref().ok_or_else(|| {
+                log::error!("aftgraphs::simulation::SimulationBuilder::build: bulding display renderer without a window");
+                anyhow::anyhow!("aftgraphs::simulation::SimulationBuilder::build: bulding display renderer without a window")
+            })?;
+
+            crate::display::init(window).await.map_err(|e| {
+                anyhow::anyhow!("aftgraphs::simulation::SimulationBuilder::build: {e}")
+            })?
         };
 
-        log::info!("Built simulation");
-        super::SimulationContext {
+        if self.event_loop.is_none() {
+            log::error!("aftgraphs::simulation::SimulationContext::build: building display renderer without an event loop");
+            anyhow::bail!("aftgraphs::simulation::SimulationContext::build: building display renderer without an event loop");
+        }
+
+        Ok(super::SimulationContext {
             simulation: <T as Simulation>::new(&renderer),
             event_loop: self.event_loop,
             renderer: Rc::new(Mutex::new(renderer)),
             window: self.window,
-        }
+        })
     }
 }
 

@@ -184,13 +184,23 @@ pub fn sim_main<T: Simulation>(inputs: Inputs) {
         .unwrap();
 
     block_on(async move {
-        log::debug!("aftgraphs::sim_main: Building simulation context");
-        let context: SimulationContext<T, UiWinitPlatform> = SimulationBuilder::new()
+        log::debug!("aftgraphs::sim_main: building simulation context");
+        let context: SimulationContext<T, UiWinitPlatform> = match SimulationBuilder::new()
             .window(window)
             .event_loop(event_loop)
             .build()
-            .await;
+            .await
+        {
+            Ok(context) => context,
+            Err(e) => {
+                log::error!("aftgraphs::sim_main: building simulation context failed: {e}");
+                panic!("aftgraphs::sim_main: building simulation context failed: {e}");
+            }
+        };
 
-        context.run_display(inputs).await;
+        if let Err(e) = context.run_display(inputs).await {
+            log::error!("aftgraphs::sim_main: simulation failed: {e}");
+            panic!("aftgraphs::sim_main: simulation failed: {e}");
+        }
     });
 }

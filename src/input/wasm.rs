@@ -160,61 +160,80 @@ impl Inputs {
 
         match input {
             Input::CHECKBOX => {
-                if let Some(checkbox) = ui.document.get_element_by_id(sanitized_name.as_str()) {
-                    if let Ok(checkbox) = checkbox.dyn_into::<HtmlInputElement>() {
-                        let val = checkbox.checked();
-                        let key = sanitized_name.replace('_', " ").replace('-', ".");
+                let checkbox = if let Some(checkbox) =
+                    ui.document.get_element_by_id(sanitized_name.as_str())
+                {
+                    checkbox
+                } else {
+                    log::error!(
+                        "aftgraphs::input::get_input: can not find element (#{sanitized_name})"
+                    );
+                    return;
+                };
 
-                        let old_entry = old_state.entry(key.clone());
-                        let state_val = state.insert(key.clone(), InputValue::CHECKBOX(val));
-                        if let Some(InputValue::CHECKBOX(state_val)) = state_val {
-                            match &old_entry {
-                                Entry::Occupied(old_entry) => {
-                                    if *old_entry.get() != InputValue::CHECKBOX(state_val) {
-                                        checkbox.set_checked(state_val);
-                                        state.insert(key, InputValue::CHECKBOX(state_val));
-                                    }
-                                }
-                                Entry::Vacant(_) => {
-                                    checkbox.set_checked(state_val);
-                                    state.insert(key, InputValue::CHECKBOX(state_val));
-                                }
+                let checkbox: HtmlInputElement = if let Ok(checkbox) = checkbox.dyn_into() {
+                    checkbox
+                } else {
+                    log::error!("aftgraphs::input::get_input: element (#{sanitized_name}) is not HtmlInputElement");
+                    return;
+                };
+
+                let val = checkbox.checked();
+                let key = sanitized_name.replace('_', " ").replace('-', ".");
+
+                let old_entry = old_state.entry(key.clone());
+                let state_val = state.insert(key.clone(), InputValue::CHECKBOX(val));
+                if let Some(InputValue::CHECKBOX(state_val)) = state_val {
+                    match &old_entry {
+                        Entry::Occupied(old_entry) => {
+                            if *old_entry.get() != InputValue::CHECKBOX(state_val) {
+                                checkbox.set_checked(state_val);
+                                state.insert(key, InputValue::CHECKBOX(state_val));
                             }
                         }
-                    } else {
-                        log::error!("Element for id {} is not input element", sanitized_name);
+                        Entry::Vacant(_) => {
+                            checkbox.set_checked(state_val);
+                            state.insert(key, InputValue::CHECKBOX(state_val));
+                        }
                     }
-                } else {
-                    log::error!("Could not find element for id {}", sanitized_name);
                 }
             }
             Input::SLIDER(_, _) => {
-                if let Some(range) = ui.document.get_element_by_id(sanitized_name.as_str()) {
-                    if let Ok(range) = range.dyn_into::<HtmlInputElement>() {
-                        let val = range.value_as_number();
-                        let key = sanitized_name.replace('_', " ").replace('-', ".");
+                let range =
+                    if let Some(range) = ui.document.get_element_by_id(sanitized_name.as_str()) {
+                        range
+                    } else {
+                        log::error!(
+                            "aftgraphs::input::get_input: can not find element (#{sanitized_name})"
+                        );
+                        return;
+                    };
 
-                        let old_entry = old_state.entry(key.clone());
-                        let state_val = state.insert(key.clone(), InputValue::SLIDER(val));
-                        if let Some(InputValue::SLIDER(state_val)) = state_val {
-                            match &old_entry {
-                                Entry::Occupied(old_entry) => {
-                                    if *old_entry.get() != InputValue::SLIDER(state_val) {
-                                        range.set_value_as_number(state_val);
-                                        state.insert(key, InputValue::SLIDER(state_val));
-                                    }
-                                }
-                                Entry::Vacant(_) => {
-                                    range.set_value_as_number(state_val);
-                                    state.insert(key, InputValue::SLIDER(state_val));
-                                }
+                let range: HtmlInputElement = if let Ok(range) = range.dyn_into() {
+                    range
+                } else {
+                    log::error!("aftgraphs::input::get_input: element (#{sanitized_name}) is not HtmlInputElement");
+                    return;
+                };
+
+                let val = range.value_as_number();
+                let key = sanitized_name.replace('_', " ").replace('-', ".");
+
+                let old_entry = old_state.entry(key.clone());
+                let state_val = state.insert(key.clone(), InputValue::SLIDER(val));
+                if let Some(InputValue::SLIDER(state_val)) = state_val {
+                    match &old_entry {
+                        Entry::Occupied(old_entry) => {
+                            if *old_entry.get() != InputValue::SLIDER(state_val) {
+                                range.set_value_as_number(state_val);
+                                state.insert(key, InputValue::SLIDER(state_val));
                             }
                         }
-                    } else {
-                        log::error!("Element for id {} is not input element", sanitized_name);
+                        Entry::Vacant(_) => {
+                            range.set_value_as_number(state_val);
+                            state.insert(key, InputValue::SLIDER(state_val));
+                        }
                     }
-                } else {
-                    log::error!("Could not find element for id {}", sanitized_name);
                 }
             }
             Input::GROUP(inputs) => {

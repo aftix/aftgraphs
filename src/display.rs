@@ -46,7 +46,7 @@ pub async fn init(window: &Window) -> anyhow::Result<Renderer<UiWinitPlatform>> 
 
     log::debug!("aftgrahps::display::init: Adding wgpu error handler");
     fn unhandled_error(error: wgpu::Error) {
-        log::error!("wgpu unhandled error: {error:?}");
+        log::error!("aftgraphs::display: wgpu unhandled error: {error:?}");
     }
     device.on_uncaptured_error(Box::new(unhandled_error));
 

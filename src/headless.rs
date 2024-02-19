@@ -111,7 +111,7 @@ pub async fn init(mut size: (u32, u32)) -> anyhow::Result<Renderer<()>> {
 
     log::debug!("aftgraphs::headless::init: Adding wgpu error handler");
     fn unhandled_error(error: wgpu::Error) {
-        log::error!("wgpu unhandled error: {error:?}");
+        log::error!("aftgraphs::headless: wgpu unhandled error: {error:?}");
     }
     device.on_uncaptured_error(Box::new(unhandled_error));
 

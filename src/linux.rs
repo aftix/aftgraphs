@@ -60,13 +60,27 @@ pub fn sim_main<T: Simulation>(inputs: Inputs) {
             size.0 = size.0.max(4);
             size.1 = size.1.max(4);
 
-            let context: SimulationContext<T, ()> = SimulationBuilder::new()
+            let context: SimulationContext<T, ()> = match SimulationBuilder::new()
                 .headless(size)
                 .build_headless()
-                .await;
+                .await
+            {
+                Ok(context) => context,
+                Err(e) => {
+                    log::error!(
+                        "aftgraphs::sim_main: headless: building simulation context failed: {e}"
+                    );
+                    panic!(
+                        "aftgraphs::sim_main: headless: building simulation context failed: {e}"
+                    );
+                }
+            };
 
             let out_img = Arc::new(Mutex::new(vec![]));
-            context.run_headless(inputs, headless_input, out_img).await;
+            if let Err(e) = context.run_headless(inputs, headless_input, out_img).await {
+                log::error!("aftgraphs::sim_main: headless rendering failed: {e}");
+                panic!("aftgraphs::sim_main: headless rendering failed:  {e}");
+            }
         } else {
             let event_loop = EventLoopBuilder::<InputEvent>::with_user_event()
                 .build()
@@ -75,12 +89,25 @@ pub fn sim_main<T: Simulation>(inputs: Inputs) {
             let window = Window::new(&event_loop).unwrap();
             window.set_title(inputs.simulation.name.as_str());
 
-            let context: SimulationContext<T, UiWinitPlatform> = SimulationBuilder::new()
+            let context: SimulationContext<T, UiWinitPlatform> = match SimulationBuilder::new()
                 .window(window)
                 .event_loop(event_loop)
                 .build()
-                .await;
-            context.run_display(inputs).await;
+                .await
+            {
+                Ok(context) => context,
+                Err(e) => {
+                    log::error!(
+                        "aftgraphs::sim_main: display: building simulation context failed: {e}"
+                    );
+                    panic!("aftgraphs::sim_main: display: building simulation context failed: {e}");
+                }
+            };
+
+            if let Err(e) = context.run_display(inputs).await {
+                log::error!("aftgraphs::sim_main: simulation failed: {e}");
+                panic!("aftgraphs::sim_main: simulation failed: {e}");
+            }
         };
     });
 }
