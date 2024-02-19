@@ -1,8 +1,7 @@
 use crate::input::Inputs;
-use crate::simulation::{InputEvent, Simulation, SimulationBuilder};
-use async_mutex::Mutex;
-use core::future::Future;
-use std::sync::Arc;
+use crate::simulation::{InputEvent, Simulation, SimulationBuilder, SimulationContext};
+use crate::ui::UiWinitPlatform;
+use std::future::Future;
 use wasm_bindgen::prelude::*;
 use web_sys::{Document, DomRect, Event, PointerEvent};
 use winit::event::{ElementState, MouseButton};
@@ -186,13 +185,12 @@ pub fn sim_main<T: Simulation>(inputs: Inputs) {
 
     block_on(async move {
         log::debug!("aftgraphs::sim_main: Building simulation context");
-        let context = SimulationBuilder::<T, _>::new()
+        let context: SimulationContext<T, UiWinitPlatform> = SimulationBuilder::new()
             .window(window)
             .event_loop(event_loop)
             .build()
             .await;
 
-        let out_img = Arc::new(Mutex::new(vec![]));
-        context.run(inputs, out_img).await;
+        context.run_display(inputs).await;
     });
 }

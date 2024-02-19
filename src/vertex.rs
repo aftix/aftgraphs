@@ -1,4 +1,5 @@
 use crate::render::Renderer;
+use crate::ui::UiPlatform;
 use bytemuck::NoUninit;
 use std::ops::Range;
 use std::ops::{Deref, DerefMut, RangeBounds};
@@ -25,9 +26,9 @@ pub struct VertexBuffer<T: NoUninit> {
     vertices: Vec<T>,
 }
 
-pub struct VertexBufferGuard<'a, T: NoUninit> {
+pub struct VertexBufferGuard<'a, T: NoUninit, P: UiPlatform> {
     vertex_buffer: &'a mut VertexBuffer<T>,
-    renderer: &'a Renderer,
+    renderer: &'a Renderer<P>,
     changed: bool,
 }
 
@@ -37,15 +38,15 @@ pub struct IndexBuffer<T: num_traits::PrimInt + NoUninit> {
     format: wgpu::IndexFormat,
 }
 
-pub struct IndexBufferGuard<'a, T: num_traits::PrimInt + NoUninit> {
+pub struct IndexBufferGuard<'a, T: num_traits::PrimInt + NoUninit, P: UiPlatform> {
     index_buffer: &'a mut IndexBuffer<T>,
-    renderer: &'a Renderer,
+    renderer: &'a Renderer<P>,
     changed: bool,
 }
 
 impl<T: num_traits::PrimInt + NoUninit> IndexBuffer<T> {
-    pub fn new(
-        renderer: &Renderer,
+    pub fn new<P: UiPlatform>(
+        renderer: &Renderer<P>,
         indices: &[T],
         format: wgpu::IndexFormat,
         label: Option<&str>,
@@ -53,8 +54,8 @@ impl<T: num_traits::PrimInt + NoUninit> IndexBuffer<T> {
         Self::with_vec(renderer, indices.to_owned(), format, label)
     }
 
-    pub fn with_vec(
-        renderer: &Renderer,
+    pub fn with_vec<P: UiPlatform>(
+        renderer: &Renderer<P>,
         indices: Vec<T>,
         format: wgpu::IndexFormat,
         label: Option<&str>,
@@ -74,7 +75,10 @@ impl<T: num_traits::PrimInt + NoUninit> IndexBuffer<T> {
         }
     }
 
-    pub fn modify<'a>(&'a mut self, renderer: &'a Renderer) -> IndexBufferGuard<'a, T> {
+    pub fn modify<'a, P: UiPlatform>(
+        &'a mut self,
+        renderer: &'a Renderer<P>,
+    ) -> IndexBufferGuard<'a, T, P> {
         IndexBufferGuard {
             index_buffer: self,
             renderer,
@@ -112,13 +116,15 @@ impl<T: NoUninit + num_traits::PrimInt> AsRef<[T]> for IndexBuffer<T> {
     }
 }
 
-impl<'a, T: NoUninit + num_traits::PrimInt> AsRef<[T]> for IndexBufferGuard<'a, T> {
+impl<'a, T: NoUninit + num_traits::PrimInt, P: UiPlatform> AsRef<[T]>
+    for IndexBufferGuard<'a, T, P>
+{
     fn as_ref(&self) -> &[T] {
         self.index_buffer.as_ref()
     }
 }
 
-impl<'a, T: NoUninit + num_traits::PrimInt> Deref for IndexBufferGuard<'a, T> {
+impl<'a, T: NoUninit + num_traits::PrimInt, P: UiPlatform> Deref for IndexBufferGuard<'a, T, P> {
     type Target = Vec<T>;
 
     fn deref(&self) -> &Self::Target {
@@ -127,7 +133,9 @@ impl<'a, T: NoUninit + num_traits::PrimInt> Deref for IndexBufferGuard<'a, T> {
 }
 
 /// Using this will make the data be sent to the GPU on drop
-impl<'a, T: NoUninit + num_traits::PrimInt> AsMut<[T]> for IndexBufferGuard<'a, T> {
+impl<'a, T: NoUninit + num_traits::PrimInt, P: UiPlatform> AsMut<[T]>
+    for IndexBufferGuard<'a, T, P>
+{
     fn as_mut(&mut self) -> &mut [T] {
         self.changed = true;
         self.index_buffer.indices.as_mut_slice()
@@ -135,14 +143,14 @@ impl<'a, T: NoUninit + num_traits::PrimInt> AsMut<[T]> for IndexBufferGuard<'a, 
 }
 
 /// Using this will make the data be sent to the GPU on drop
-impl<'a, T: NoUninit + num_traits::PrimInt> DerefMut for IndexBufferGuard<'a, T> {
+impl<'a, T: NoUninit + num_traits::PrimInt, P: UiPlatform> DerefMut for IndexBufferGuard<'a, T, P> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.changed = true;
         &mut self.index_buffer.indices
     }
 }
 
-impl<'a, T: NoUninit + num_traits::PrimInt> Drop for IndexBufferGuard<'a, T> {
+impl<'a, T: NoUninit + num_traits::PrimInt, P: UiPlatform> Drop for IndexBufferGuard<'a, T, P> {
     fn drop(&mut self) {
         if self.changed {
             self.renderer.queue.write_buffer(
@@ -157,7 +165,10 @@ impl<'a, T: NoUninit + num_traits::PrimInt> Drop for IndexBufferGuard<'a, T> {
 impl<T: NoUninit> VertexBuffer<T> {
     /// Create a guard to modify the VertexBuffer
     /// When the guard drops, it wil buffer the data to the GPU
-    pub fn modify<'a>(&'a mut self, renderer: &'a Renderer) -> VertexBufferGuard<'a, T> {
+    pub fn modify<'a, P: UiPlatform>(
+        &'a mut self,
+        renderer: &'a Renderer<P>,
+    ) -> VertexBufferGuard<'a, T, P> {
         VertexBufferGuard {
             vertex_buffer: self,
             renderer,
@@ -199,13 +210,13 @@ impl<T: NoUninit> AsRef<[T]> for VertexBuffer<T> {
     }
 }
 
-impl<'a, T: NoUninit> AsRef<[T]> for VertexBufferGuard<'a, T> {
+impl<'a, T: NoUninit, P: UiPlatform> AsRef<[T]> for VertexBufferGuard<'a, T, P> {
     fn as_ref(&self) -> &[T] {
         self.vertex_buffer.as_ref()
     }
 }
 
-impl<'a, T: NoUninit> Deref for VertexBufferGuard<'a, T> {
+impl<'a, T: NoUninit, P: UiPlatform> Deref for VertexBufferGuard<'a, T, P> {
     type Target = Vec<T>;
 
     fn deref(&self) -> &Self::Target {
@@ -214,7 +225,7 @@ impl<'a, T: NoUninit> Deref for VertexBufferGuard<'a, T> {
 }
 
 /// Using this will make the data be sent to the GPU on drop
-impl<'a, T: NoUninit> AsMut<[T]> for VertexBufferGuard<'a, T> {
+impl<'a, T: NoUninit, P: UiPlatform> AsMut<[T]> for VertexBufferGuard<'a, T, P> {
     fn as_mut(&mut self) -> &mut [T] {
         self.changed = true;
         self.vertex_buffer.vertices.as_mut_slice()
@@ -222,14 +233,14 @@ impl<'a, T: NoUninit> AsMut<[T]> for VertexBufferGuard<'a, T> {
 }
 
 /// Using this will make the data be sent to the GPU on drop
-impl<'a, T: NoUninit> DerefMut for VertexBufferGuard<'a, T> {
+impl<'a, T: NoUninit, P: UiPlatform> DerefMut for VertexBufferGuard<'a, T, P> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.changed = true;
         &mut self.vertex_buffer.vertices
     }
 }
 
-impl<'a, T: NoUninit> Drop for VertexBufferGuard<'a, T> {
+impl<'a, T: NoUninit, P: UiPlatform> Drop for VertexBufferGuard<'a, T, P> {
     fn drop(&mut self) {
         if self.changed {
             self.renderer.queue.write_buffer(

@@ -1,4 +1,5 @@
 pub mod display;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod headless;
 pub mod input;
 pub mod primitives;
@@ -8,6 +9,9 @@ pub mod ui;
 pub mod uniform;
 pub mod vertex;
 
+#[cfg(not(target_arch = "wasm32"))]
+mod cli;
+
 pub mod prelude {
     pub use crate::input::{InputState, InputValue};
     pub use crate::render::{
@@ -15,9 +19,9 @@ pub mod prelude {
         ShaderBuilder, BINDING_UNIFORM_BUFFER,
     };
     pub use crate::simulation::{
-        ElementState, InputEvent, KeyEvent, MouseButton, Simulation, SimulationContext,
+        ElementState, InputEvent, MouseButton, RawKeyEvent, Simulation, SimulationContext,
     };
-    pub use crate::ui::{Ui, UiFrame};
+    pub use crate::ui::{Ui, UiFrame, UiPlatform};
     pub use crate::uniform::{Uniform, UniformBuilder};
     pub use crate::vertex::{IndexBuffer, VertexBuffer, VertexBufferBuilder, PRIMITIVE_POINTS};
 

@@ -1,5 +1,5 @@
 use super::VertexBuffer;
-use crate::render::Renderer;
+use crate::{render::Renderer, ui::UiPlatform};
 use bytemuck::NoUninit;
 use wgpu::util::DeviceExt;
 
@@ -34,7 +34,7 @@ impl<'a, T: NoUninit> VertexBufferBuilder<'a, T> {
 
     /// Creates the VertexBuffer
     /// This includes calls to the GPU
-    pub fn build(self, renderer: &Renderer) -> VertexBuffer<T> {
+    pub fn build<P: UiPlatform>(self, renderer: &Renderer<P>) -> VertexBuffer<T> {
         let Self {
             attributes,
             array_stride,

@@ -1,11 +1,14 @@
 use web_sys::{self, Document, HtmlElement};
 use winit::window::Window;
 
-pub struct UiPlatform;
+pub struct UiWinitPlatform;
 
-impl UiPlatform {
-    pub fn prepare_render(&mut self, _frame: UiFrame, _window: &Window) {}
+pub trait UiPlatform {
+    fn prepare_render(&mut self, _frame: UiFrame, _window: &Window) {}
 }
+
+impl UiPlatform for UiWinitPlatform {}
+impl UiPlatform for () {}
 
 #[derive(Debug)]
 pub struct Ui {
@@ -18,7 +21,7 @@ pub type UiContext<'a> = &'a mut Ui;
 pub type UiFrame<'a> = &'a mut Ui;
 
 impl Ui {
-    pub fn frame(&mut self) -> UiFrame<'_> {
+    pub fn new_frame(&mut self) -> UiFrame<'_> {
         self
     }
 
@@ -31,7 +34,7 @@ impl Ui {
         _device: &wgpu::Device,
         _queue: &wgpu::Queue,
         _swapchain_format: wgpu::TextureFormat,
-    ) -> (Self, UiPlatform) {
+    ) -> (Self, UiWinitPlatform) {
         log::debug!("aftgraphs::ui::new: Creating ui");
 
         // All of these unwraps are checked in sim_main before this is run
@@ -45,11 +48,11 @@ impl Ui {
                 document,
                 input_forms_created: false,
             },
-            UiPlatform,
+            UiWinitPlatform,
         )
     }
 
-    pub fn new_headless() -> (Self, UiPlatform) {
+    pub fn new_headless() -> (Self, ()) {
         unreachable!("no headless available in wasm")
     }
 

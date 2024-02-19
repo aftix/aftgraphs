@@ -16,7 +16,7 @@ pub enum Input {
     GROUP(HashMap<String, Input>),
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum InputValue {
     SLIDER(f64),
     CHECKBOX(bool),
@@ -76,6 +76,7 @@ pub struct InputBlock {
 pub struct InputMetadata {
     pub name: String,
     pub description: Option<String>,
+    pub author: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
@@ -123,6 +124,7 @@ mod test {
         assert_eq!(
             Inputs {
                 simulation: InputMetadata {
+                    author: None,
                     name: "test".to_owned(),
                     description: None,
                 },
@@ -146,6 +148,7 @@ mod test {
             Inputs {
                 simulation: InputMetadata {
                     name: "test".to_owned(),
+                    author: None,
                     description: Some("testing".to_owned()),
                 },
                 blocks: vec![],
@@ -173,6 +176,7 @@ mod test {
 
         let simulation = InputMetadata {
             name: "test".to_owned(),
+            author: None,
             description: None,
         };
 
@@ -225,6 +229,7 @@ mod test {
         let simulation = InputMetadata {
             name: "test".to_owned(),
             description: None,
+            author: None,
         };
 
         let inner_block_map: HashMap<String, Input> = [

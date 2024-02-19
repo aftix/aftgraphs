@@ -1,8 +1,9 @@
 use super::Renderer;
+use crate::ui::UiPlatform;
 use web_time::Duration;
 use winit::{event::Event, window::Window};
 
-impl Renderer {
+impl<P: UiPlatform> Renderer<P> {
     pub fn handle_event<T>(&mut self, window: &Window, event: &Event<T>) {
         self.platform.handle_event(&mut self.ui, window, event);
     }

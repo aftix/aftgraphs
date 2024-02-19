@@ -58,7 +58,7 @@ struct Particles {
 }
 
 impl Simulation for Particles {
-    fn new(renderer: &Renderer) -> Self {
+    fn new<P: UiPlatform>(renderer: &Renderer<P>) -> Self {
         let module = include_wgsl!(concat!(env!("CARGO_MANIFEST_DIR"), "/res/particles.wgsl"));
 
         let particles = vec![(0.0, 0.0)];
@@ -66,7 +66,9 @@ impl Simulation for Particles {
 
         let initial_vertices: Vec<_> = particles
             .iter()
-            .flat_map(|&center| Vertex::new(center, radius, [1.0; 3], renderer.aspect_ratio).into_iter())
+            .flat_map(|&center| {
+                Vertex::new(center, radius, [1.0; 3], renderer.aspect_ratio).into_iter()
+            })
             .collect();
 
         let vertices = VertexBufferBuilder::new()
@@ -119,9 +121,9 @@ impl Simulation for Particles {
 
     async fn on_input(&mut self, _event: InputEvent) {}
 
-    async fn render(
+    async fn render<P: UiPlatform>(
         &mut self,
-        _renderer: &Renderer,
+        _renderer: &Renderer<P>,
         mut render_pass: RenderPass<'_>,
         _inputs: &mut HashMap<String, InputValue>,
     ) {

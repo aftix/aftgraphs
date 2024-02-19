@@ -5,21 +5,41 @@ use imgui_winit_support::{HiDpiMode, WinitPlatform};
 use wgpu::{Device, Queue, TextureFormat};
 use winit::{event::Event, window::Window};
 
-pub struct UiPlatform(WinitPlatform);
+pub trait UiPlatform {
+    fn prepare_frame(&mut self, ui: &mut Ui, window: &Window);
+    fn prepare_render(&mut self, frame: &mut imgui::Ui, window: &Window);
+    fn handle_event<T>(&mut self, ui: &mut Ui, window: &Window, event: &Event<T>);
+}
 
-impl UiPlatform {
-    pub fn prepare_frame(&mut self, ui: &mut Ui, window: &Window) {
+pub struct UiWinitPlatform(WinitPlatform);
+
+impl UiPlatform for UiWinitPlatform {
+    fn prepare_frame(&mut self, ui: &mut Ui, window: &Window) {
         self.0
             .prepare_frame(ui.0.io_mut(), window)
             .expect("aftgraphs::ui::UiPlatform::prepare_frame: Enexpected failure");
     }
 
-    pub fn prepare_render(&mut self, frame: &mut imgui::Ui, window: &Window) {
+    fn prepare_render(&mut self, frame: &mut imgui::Ui, window: &Window) {
         self.0.prepare_render(frame, window);
     }
 
-    pub fn handle_event<T>(&mut self, ui: &mut Ui, window: &Window, event: &Event<T>) {
+    fn handle_event<T>(&mut self, ui: &mut Ui, window: &Window, event: &Event<T>) {
         self.0.handle_event(ui.0.io_mut(), window, event);
+    }
+}
+
+impl UiPlatform for () {
+    fn prepare_frame(&mut self, _ui: &mut Ui, _window: &Window) {
+        panic!("Do not call any platform functions on headless")
+    }
+
+    fn prepare_render(&mut self, _frame: &mut imgui::Ui, _window: &Window) {
+        panic!("Do not call any platform functions on headless")
+    }
+
+    fn handle_event<T>(&mut self, _ui: &mut Ui, _window: &Window, _event: &Event<T>) {
+        panic!("Do not call any platform functions on headless")
     }
 }
 
@@ -62,7 +82,7 @@ impl Ui {
         device: &Device,
         queue: &Queue,
         swapchain_format: TextureFormat,
-    ) -> (Self, UiPlatform) {
+    ) -> (Self, UiWinitPlatform) {
         let mut ctx = Context::create();
         ctx.set_ini_filename(None);
 
@@ -106,11 +126,47 @@ impl Ui {
             ..Default::default()
         };
         let renderer = ImguiRenderer::new(&mut ctx, device, queue, renderer_config);
-        (Self(ctx, renderer), UiPlatform(platform))
+        (Self(ctx, renderer), UiWinitPlatform(platform))
     }
 
-    pub fn new_headless() -> (Self, UiPlatform) {
-        todo!()
+    pub fn new_headless(
+        size: (u32, u32),
+        device: &Device,
+        queue: &Queue,
+        swapchain_format: TextureFormat,
+    ) -> (Self, ()) {
+        let mut ctx = Context::create();
+        ctx.set_ini_filename(None);
+
+        if let Some(clipboard) = ClipboardSupport::new() {
+            ctx.set_clipboard_backend(clipboard);
+        } else {
+            log::error!("Failed to initialize clipboard backend");
+        }
+
+        let font_size = 14.0;
+        ctx.fonts().add_font(&[FontSource::TtfData {
+            data: include_bytes!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/res/Roboto-Regular.ttf"
+            )),
+            size_pixels: font_size,
+            config: Some(FontConfig {
+                rasterizer_multiply: 1.5,
+                oversample_h: 4,
+                oversample_v: 4,
+                ..Default::default()
+            }),
+        }]);
+
+        ctx.io_mut().display_size = [size.0 as f32, size.1 as f32];
+
+        let renderer_config = RendererConfig {
+            texture_format: swapchain_format,
+            ..Default::default()
+        };
+        let renderer = ImguiRenderer::new(&mut ctx, device, queue, renderer_config);
+        (Self(ctx, renderer), ())
     }
 
     pub fn ui_frame(&mut self) -> UiFrame {

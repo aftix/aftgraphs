@@ -1,5 +1,5 @@
 use super::Uniform;
-use crate::render::Renderer;
+use crate::{render::Renderer, ui::UiPlatform};
 use bytemuck::{NoUninit, Zeroable};
 use std::marker::PhantomData;
 use wgpu::util::{BufferInitDescriptor, DeviceExt};
@@ -70,7 +70,7 @@ impl<'a, T: NoUninit> UniformBuilder<'a, T, BuilderInit> {
 }
 
 impl<'a, T: NoUninit> UniformBuilder<'a, T, BuilderComplete> {
-    pub fn build(self, renderer: &Renderer) -> Uniform<T> {
+    pub fn build<P: UiPlatform>(self, renderer: &Renderer<P>) -> Uniform<T> {
         let Self {
             bind_group_layout,
             usage,

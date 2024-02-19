@@ -18,7 +18,11 @@ struct TriangleSimulation {
 }
 
 impl TriangleSimulation {
-    fn update_inputs(&mut self, renderer: &Renderer, inputs: &HashMap<String, InputValue>) {
+    fn update_inputs<P: UiPlatform>(
+        &mut self,
+        renderer: &Renderer<P>,
+        inputs: &HashMap<String, InputValue>,
+    ) {
         if let Some(&InputValue::SLIDER(val)) = inputs.get("triangle inputs.rotation") {
             let val = (val as f32).to_radians();
             self.rotation.update(renderer, Float(val));
@@ -35,9 +39,9 @@ impl TriangleSimulation {
 }
 
 impl Simulation for TriangleSimulation {
-    async fn render(
+    async fn render<P: UiPlatform>(
         &mut self,
-        renderer: &Renderer,
+        renderer: &Renderer<P>,
         mut render_pass: RenderPass<'_>,
         inputs: &mut HashMap<String, InputValue>,
     ) {
@@ -82,7 +86,7 @@ impl Simulation for TriangleSimulation {
         }
     }
 
-    fn new(renderer: &Renderer) -> Self {
+    fn new<P: UiPlatform>(renderer: &Renderer<P>) -> Self {
         let module = include_wgsl!(concat!(env!("CARGO_MANIFEST_DIR"), "/res/triangle.wgsl"));
 
         let rotation_layout = BindGroupLayoutBuilder::new()

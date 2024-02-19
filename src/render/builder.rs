@@ -1,3 +1,5 @@
+use crate::ui::UiPlatform;
+
 use super::{RenderPipeline, Renderer, Shader};
 use std::{marker::PhantomData, num::NonZeroU32};
 
@@ -89,7 +91,7 @@ impl<'a> ShaderBuilder<'a, BuilderComplete> {
     /// Creates a Shader struct to be passed to RendererPipeline things
     /// If a fragment shader entry point is used and no color targets are set,
     /// the builder will use a default target
-    pub fn build(self, renderer: &Renderer) -> Shader<'a> {
+    pub fn build<P: UiPlatform>(self, renderer: &Renderer<P>) -> Shader<'a> {
         let Self {
             module,
             vs_entry,
@@ -103,14 +105,16 @@ impl<'a> ShaderBuilder<'a, BuilderComplete> {
         let shader = renderer.device.create_shader_module(module);
 
         if fs_entry.is_some() && targets.is_empty() {
-            let _ = renderer
-                .surface
-                .as_ref()
-                .map(|surface| surface.get_capabilities(&renderer.adapter))
-                .is_some_and(|capabilities| {
-                    targets.push(Some(capabilities.formats[0].into()));
-                    true
-                });
+            if let Some(ref surface) = renderer.surface {
+                let capabilities = surface.get_capabilities(&renderer.adapter);
+                targets.push(Some(capabilities.formats[0].into()));
+            } else {
+                targets.push(Some(wgpu::ColorTargetState {
+                    format: wgpu::TextureFormat::Rgba8UnormSrgb,
+                    blend: Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),
+                    write_mask: wgpu::ColorWrites::ALL,
+                }))
+            }
         }
 
         Shader {
@@ -245,7 +249,7 @@ impl<'a> BindGroupLayoutBuilder<'a> {
         self
     }
 
-    pub fn build(self, renderer: &Renderer) -> wgpu::BindGroupLayout {
+    pub fn build<P: UiPlatform>(self, renderer: &Renderer<P>) -> wgpu::BindGroupLayout {
         renderer
             .device
             .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -368,7 +372,7 @@ impl<'a> RenderPipelineBuilder<'a, BuilderInit> {
 impl<'a> RenderPipelineBuilder<'a, BuilderComplete> {
     /// Use a Renderer to build the completed pipeline.
     /// This pipeline is used when calling Renderer::render
-    pub fn build(self, renderer: &Renderer) -> RenderPipeline {
+    pub fn build<P: UiPlatform>(self, renderer: &Renderer<P>) -> RenderPipeline {
         let Self {
             vertex_shader,
             fragment_shader,

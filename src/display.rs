@@ -1,8 +1,12 @@
-use crate::prelude::{Mutex, Renderer, Ui};
+use crate::{
+    render::Renderer,
+    ui::{Ui, UiWinitPlatform},
+};
 use anyhow::anyhow;
+use async_mutex::Mutex;
 use winit::window::Window;
 
-pub async fn init(window: &Window) -> anyhow::Result<Renderer> {
+pub async fn init(window: &Window) -> anyhow::Result<Renderer<UiWinitPlatform>> {
     log::debug!("aftgraphs::display::init: Initializing display");
 
     let mut size = window.inner_size();

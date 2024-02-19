@@ -1,0 +1,13 @@
+[simulation]
+duration = 10
+delta_t = 0.1
+
+[initial-inputs]
+triangle_inputs-mouseInput = { CHECKBOX = false }
+triangle_inputs-color = { SLIDER = 1.0 }
+triangle_inputs-rotation = { SLIDER = 0.0 }
+
+[[block]]
+time = 5.0
+triangle_inputs-color = { SLIDER = 0.5 }
+triangle_inputs-rotation = { SLIDER = 90.0 }

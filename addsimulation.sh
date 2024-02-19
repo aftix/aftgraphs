@@ -23,8 +23,8 @@ winit = { version = "0.29.3", features=["rwh_05", "wayland", "x11"] }
 wgpu = { version="0.18", features=["webgl", "spirv"] }
 
 '"[target.'cfg(target_family = \"wasm\")'.dependencies]"'
-wasm-bindgen = "0.2"
 js-sys = "0.3"
+wasm-bindgen = "0.2"
 web-sys = { version = "0.3", features = [
   "WebGl2RenderingContext",
   "WebGlActiveInfo",

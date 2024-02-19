@@ -1,4 +1,5 @@
 use crate::render::Renderer;
+use crate::ui::UiPlatform;
 use bytemuck::NoUninit;
 use std::ops::{Deref, DerefMut};
 
@@ -12,16 +13,19 @@ pub struct Uniform<T: NoUninit> {
     data: T,
 }
 
-pub struct UniformGuard<'a, T: NoUninit> {
+pub struct UniformGuard<'a, T: NoUninit, P: UiPlatform> {
     uniform: &'a mut Uniform<T>,
-    renderer: &'a Renderer,
+    renderer: &'a Renderer<P>,
     changed: bool,
 }
 
 impl<T: NoUninit> Uniform<T> {
     /// Create a guard to modify the uniform
     /// When the guard drops, it will buffer the data to the GPU
-    pub fn modify<'a>(&'a mut self, renderer: &'a Renderer) -> UniformGuard<'a, T> {
+    pub fn modify<'a, P: UiPlatform>(
+        &'a mut self,
+        renderer: &'a Renderer<P>,
+    ) -> UniformGuard<'a, T, P> {
         UniformGuard {
             uniform: self,
             renderer,
@@ -44,7 +48,7 @@ impl<T: NoUninit + PartialEq> Uniform<T> {
     /// Update the uniform value
     /// Will immediately buffer data to the GPU, but only if the
     /// new value is not equal to the old value
-    pub fn update(&mut self, renderer: &Renderer, value: T) {
+    pub fn update<P: UiPlatform>(&mut self, renderer: &Renderer<P>, value: T) {
         if value == self.data {
             self.data = value;
             return;
@@ -71,21 +75,21 @@ impl<T: NoUninit> Deref for Uniform<T> {
     }
 }
 
-impl<'a, T: NoUninit> AsRef<T> for UniformGuard<'a, T> {
+impl<'a, T: NoUninit, P: UiPlatform> AsRef<T> for UniformGuard<'a, T, P> {
     fn as_ref(&self) -> &T {
         self.uniform.as_ref()
     }
 }
 
 /// Using this will make the data be sent to the GPU on drop
-impl<'a, T: NoUninit> AsMut<T> for UniformGuard<'a, T> {
+impl<'a, T: NoUninit, P: UiPlatform> AsMut<T> for UniformGuard<'a, T, P> {
     fn as_mut(&mut self) -> &mut T {
         self.changed = true;
         &mut self.uniform.data
     }
 }
 
-impl<'a, T: NoUninit> Deref for UniformGuard<'a, T> {
+impl<'a, T: NoUninit, P: UiPlatform> Deref for UniformGuard<'a, T, P> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
@@ -94,14 +98,14 @@ impl<'a, T: NoUninit> Deref for UniformGuard<'a, T> {
 }
 
 /// Using this will make the data be sent to the GPU on drop
-impl<'a, T: NoUninit> DerefMut for UniformGuard<'a, T> {
+impl<'a, T: NoUninit, P: UiPlatform> DerefMut for UniformGuard<'a, T, P> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.as_mut()
     }
 }
 
 /// Buffers data to GPU if changed
-impl<'a, T: NoUninit> Drop for UniformGuard<'a, T> {
+impl<'a, T: NoUninit, P: UiPlatform> Drop for UniformGuard<'a, T, P> {
     fn drop(&mut self) {
         if self.changed {
             self.renderer.queue.write_buffer(

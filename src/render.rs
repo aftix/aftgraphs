@@ -24,8 +24,8 @@ pub static BINDING_UNIFORM_BUFFER: wgpu::BindingType = wgpu::BindingType::Buffer
 
 pub struct RendererPass {
     pub encoder: wgpu::CommandEncoder,
-    pub frame: wgpu::SurfaceTexture,
-    pub view: wgpu::TextureView,
+    pub frame: Option<wgpu::SurfaceTexture>,
+    pub view: Option<wgpu::TextureView>,
 }
 
 pub struct Shader<'a> {
@@ -79,7 +79,7 @@ impl DerefMut for RenderPipeline {
     }
 }
 
-pub struct Renderer {
+pub struct Renderer<P: UiPlatform> {
     pub headless: bool,
     pub instance: wgpu::Instance,
     pub adapter: wgpu::Adapter,
@@ -91,19 +91,18 @@ pub struct Renderer {
     pub texture: Option<wgpu::Texture>,
     pub texture_view: Option<wgpu::TextureView>,
     pub buffer: Option<wgpu::Buffer>,
-    pub platform: UiPlatform,
+    pub platform: P,
     pub ui: Ui,
     pub aspect_ratio: f64,
 }
 
-impl Renderer {
-    async fn display_render<T: Simulation>(
+impl<P: UiPlatform> Renderer<P> {
+    async fn render_display<T: Simulation>(
         &self,
+        surface: &wgpu::Surface,
         simulation: Arc<Mutex<T>>,
         input_values: &mut HashMap<String, InputValue>,
     ) {
-        let surface = self.surface.as_ref().unwrap();
-
         let mut pass = self.render_pass.lock().await;
         let frame = match surface.get_current_texture() {
             Ok(frame) => frame,
@@ -115,139 +114,171 @@ impl Renderer {
         let view = frame
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
-        let encoder = self
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("aftgraphs::render::Renderer::display_render"),
-            });
-
-        *pass = Some(RendererPass {
-            encoder,
-            frame,
-            view,
-        });
-
-        let pass = unsafe { pass.as_mut().unwrap_unchecked() };
-        {
-            let render_pass = pass.encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("aftgraphs::render::Renderer::display_render"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &pass.view,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
-                        store: wgpu::StoreOp::Store,
-                    },
-                })],
-                depth_stencil_attachment: None,
-                timestamp_writes: None,
-                occlusion_query_set: None,
-            });
-            simulation
-                .lock()
-                .await
-                .render(self, render_pass, input_values)
-                .await;
-        }
-    }
-
-    async fn headless_render<T: Simulation>(
-        &self,
-        simulation: Arc<Mutex<T>>,
-        input_values: &mut HashMap<String, InputValue>,
-        out_img: &mut [u8],
-    ) {
         let mut encoder = self
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("aftgraphs::render::Renderer::headless_render"),
+                label: Some("aftgraphs::render::Renderer::render_display"),
             });
 
-        {
-            let render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("aftgraphs::render::Renderer::headless_render"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: self.texture_view.as_ref().unwrap(),
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: 0.0,
-                            b: 0.0,
-                            g: 0.0,
-                            a: 1.0,
-                        }),
-                        store: wgpu::StoreOp::Store,
-                    },
-                })],
-                depth_stencil_attachment: None,
-                timestamp_writes: None,
-                occlusion_query_set: None,
-            });
-
-            simulation
-                .lock()
-                .await
-                .render(self, render_pass, input_values)
-                .await;
-        }
-
-        let u32_size = std::mem::size_of::<u32>() as u32;
-        let texture_size = self.texture.as_ref().map(|tex| tex.size()).unwrap();
-        encoder.copy_texture_to_buffer(
-            wgpu::ImageCopyTexture {
-                aspect: wgpu::TextureAspect::All,
-                texture: self.texture.as_ref().unwrap(),
-                mip_level: 0,
-                origin: wgpu::Origin3d::ZERO,
-            },
-            wgpu::ImageCopyBuffer {
-                buffer: self.buffer.as_ref().unwrap(),
-                layout: wgpu::ImageDataLayout {
-                    offset: 0,
-                    bytes_per_row: Some(u32_size * texture_size.width),
-                    rows_per_image: Some(texture_size.height),
+        let render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("aftgraphs::render::Renderer::render_display"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: &view,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                    store: wgpu::StoreOp::Store,
                 },
-            },
-            texture_size,
-        );
-
-        let buffer_slice = self.buffer.as_ref().map(|buf| buf.slice(..)).unwrap();
-        let (tx, rx) = futures_intrusive::channel::shared::oneshot_channel();
-        buffer_slice.map_async(wgpu::MapMode::Read, move |result| {
-            tx.send(result).unwrap();
+            })],
+            depth_stencil_attachment: None,
+            timestamp_writes: None,
+            occlusion_query_set: None,
         });
-        self.device.poll(wgpu::Maintain::Wait);
-        rx.receive().await.unwrap().unwrap();
+        simulation
+            .lock()
+            .await
+            .render(self, render_pass, input_values)
+            .await;
 
-        let data = buffer_slice.get_mapped_range();
-        out_img.clone_from_slice(&data[..]);
+        *pass = Some(RendererPass {
+            encoder,
+            frame: Some(frame),
+            view: Some(view),
+        });
     }
 
-    // Render a frame using the RenderPipeline, calling the closure draw
-    // to gain access to the rendering pass
+    #[cfg(target_arch = "wasm32")]
+    async fn render_headless<T: Simulation>(
+        &self,
+        _simulation: Arc<Mutex<T>>,
+        _input_values: &mut HashMap<String, InputValue>,
+    ) {
+        panic!("headless rendering not supported on WASM")
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    async fn render_headless<T: Simulation>(
+        &self,
+        simulation: Arc<Mutex<T>>,
+        input_values: &mut HashMap<String, InputValue>,
+    ) {
+        let mut pass = self.render_pass.lock().await;
+
+        let view = if let Some(ref texture_view) = self.texture_view {
+            texture_view
+        } else {
+            panic!("aftgraphs::render::Renderer::render_headless: No target texture");
+        };
+
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("aftgraphs::render::Renderer::render_headless"),
+            });
+
+        let render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("aftgraphs::render::Renderer::render_headless"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                    store: wgpu::StoreOp::Store,
+                },
+            })],
+            depth_stencil_attachment: None,
+            timestamp_writes: None,
+            occlusion_query_set: None,
+        });
+        simulation
+            .lock()
+            .await
+            .render(self, render_pass, input_values)
+            .await;
+
+        *pass = Some(RendererPass {
+            encoder,
+            frame: None,
+            view: None,
+        })
+    }
+
     pub async fn render<T: Simulation>(
         &self,
         simulation: Arc<Mutex<T>>,
         input_values: &mut HashMap<String, InputValue>,
-        out_img: Arc<Mutex<Vec<u8>>>,
     ) {
-        if !self.headless {
-            self.display_render(simulation, input_values).await;
+        if let Some(surface) = self.surface.as_ref() {
+            self.render_display(surface, simulation, input_values).await;
         } else {
-            let out_img = out_img.clone();
-            self.headless_render(
-                simulation,
-                input_values,
-                out_img.lock().await.as_mut_slice(),
-            )
-            .await;
+            self.render_headless(simulation, input_values).await;
         }
     }
 
-    pub async fn draw_ui(&mut self, window: &Window, inputs: Inputs, state: InputState) {
+    pub async fn render_headless_finish(&self, out_img: &mut Vec<u8>) {
+        let u32_size = std::mem::size_of::<u32>() as u32;
+        let texture_size = self.texture.as_ref().map(|tex| tex.size()).unwrap();
+
+        let mut pass = self.render_pass.lock().await;
+        let pass = pass.take();
+
+        if let Some(mut pass) = pass {
+            let bytes_per_row = u32_size * texture_size.width;
+            let missing_bytes = wgpu::COPY_BYTES_PER_ROW_ALIGNMENT
+                - (bytes_per_row % wgpu::COPY_BYTES_PER_ROW_ALIGNMENT);
+            let bytes_per_row = bytes_per_row + missing_bytes;
+
+            pass.encoder.copy_texture_to_buffer(
+                wgpu::ImageCopyTexture {
+                    aspect: wgpu::TextureAspect::All,
+                    texture: self.texture.as_ref().unwrap(),
+                    mip_level: 0,
+                    origin: wgpu::Origin3d::ZERO,
+                },
+                wgpu::ImageCopyBuffer {
+                    buffer: self.buffer.as_ref().unwrap(),
+                    layout: wgpu::ImageDataLayout {
+                        offset: 0,
+                        bytes_per_row: Some(bytes_per_row),
+                        rows_per_image: Some(texture_size.height),
+                    },
+                },
+                texture_size,
+            );
+
+            self.queue.submit(Some(pass.encoder.finish()));
+
+            if let Some(ref buffer) = self.buffer {
+                if out_img.len() != buffer.size() as usize {
+                    out_img.resize(buffer.size() as usize, 0);
+                }
+
+                {
+                    let buffer_slice = buffer.slice(..);
+                    let (tx, rx) = futures_intrusive::channel::shared::oneshot_channel();
+                    buffer_slice.map_async(wgpu::MapMode::Read, move |result| {
+                        tx.send(result).unwrap();
+                    });
+                    self.device.poll(wgpu::Maintain::Wait);
+                    rx.receive().await.unwrap().unwrap();
+
+                    let data = buffer_slice.get_mapped_range();
+                    out_img.clone_from_slice(&data[..]);
+                }
+
+                buffer.unmap();
+            } else {
+                log::error!("aftgraphs::render::Renderer::render_headless_finish called with None Renderer::buffer");
+            }
+        } else {
+            log::error!("aftgraphs::render::Renderer::render_headless_finish called with None Renderer::render_pass");
+        }
+    }
+
+    pub async fn draw_ui(&mut self, window: Option<&Window>, inputs: &Inputs, state: InputState) {
         let ui = self.ui.context_mut();
 
-        let frame = ui.frame();
+        let frame = ui.new_frame();
         inputs.render(frame, state).await;
 
         let mut pass = self.render_pass.lock().await;
@@ -270,23 +301,29 @@ impl Renderer {
                 });
             *pass = Some(RendererPass {
                 encoder,
-                frame,
-                view,
+                frame: Some(frame),
+                view: Some(view),
             });
         }
 
         {
             let pass = unsafe { pass.as_mut().unwrap_unchecked() };
-            self.platform.prepare_render(frame, window);
+            if let Some(window) = window {
+                self.platform.prepare_render(frame, window);
+            }
 
-            let view = pass
-                .frame
-                .texture
-                .create_view(&wgpu::TextureViewDescriptor::default());
+            let view = if let Some(ref view) = pass.view {
+                view
+            } else {
+                self.texture_view
+                    .as_ref()
+                    .expect("headless rendering without Renderer texture_view")
+            };
+
             let mut render_pass = pass.encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("aftgraphs::render::Renderer::draw_ui"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &view,
+                    view,
                     resolve_target: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Load,
@@ -303,10 +340,12 @@ impl Renderer {
                 .expect("Renderer::draw_ui: rendering failed");
         }
 
-        {
+        if !self.headless {
             let pass = unsafe { pass.take().unwrap_unchecked() };
             self.queue.submit(Some(pass.encoder.finish()));
-            pass.frame.present();
+            if let Some(frame) = pass.frame {
+                frame.present();
+            }
         }
     }
 }

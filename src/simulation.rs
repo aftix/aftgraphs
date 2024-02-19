@@ -1,31 +1,29 @@
 use async_mutex::Mutex;
-use std::rc::Rc;
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, sync::Arc, rc::Rc};
 use winit::{
     dpi::{PhysicalPosition, PhysicalSize},
-    event::{Event, WindowEvent},
+    event::{Event, WindowEvent, KeyEvent},
     event_loop::EventLoop,
     keyboard::{Key, NamedKey},
     window::Window,
 };
-
 use crate::block_on;
 use crate::input::{InputState, InputValue, Inputs};
 use crate::render::Renderer;
-
-pub use winit::event::{ElementState, KeyEvent, MouseButton};
+use crate::ui::{UiPlatform, UiWinitPlatform};
+pub use winit::event::{ElementState, RawKeyEvent, MouseButton};
 
 pub enum InputEvent {
-    Keyboard(KeyEvent),
+    Keyboard(RawKeyEvent),
     /// f64 pair is (x, y) coordinates in [-1, 1] space
     Mouse(ElementState, MouseButton, (f64, f64)),
 }
 
 pub trait Simulation: 'static {
     #[allow(async_fn_in_trait)]
-    async fn render(
+    async fn render<P: UiPlatform>(
         &mut self,
-        renderer: &Renderer,
+        renderer: &Renderer<P>,
         render_pass: wgpu::RenderPass<'_>,
         inputs: &mut HashMap<String, InputValue>,
     );
@@ -33,12 +31,12 @@ pub trait Simulation: 'static {
     #[allow(async_fn_in_trait)]
     async fn on_input(&mut self, event: InputEvent);
 
-    fn new(renderer: &Renderer) -> Self;
+    fn new<P: UiPlatform>(renderer: &Renderer<P>) -> Self;
 }
 
-pub struct SimulationContext<T: Simulation> {
-    event_loop: EventLoop<InputEvent>,
-    renderer: Rc<Mutex<Renderer>>,
+pub struct SimulationContext<T: Simulation, P: UiPlatform> {
+    event_loop: Option<EventLoop<InputEvent>>,
+    renderer: Rc<Mutex<Renderer<P>>>,
     window: Arc<Mutex<Option<Window>>>,
     simulation: T,
 }
@@ -46,9 +44,123 @@ pub struct SimulationContext<T: Simulation> {
 mod builder;
 pub use builder::{BuilderState, SimulationBuilder};
 
-impl<T: Simulation> SimulationContext<T> {
-    pub async fn run(self, inputs: Inputs, out_img: Arc<Mutex<Vec<u8>>>) {
-        log::debug!("aftgraphs::SimulationContext::run entered");
+#[cfg(not(target_arch = "wasm32"))]
+mod encoder;
+
+impl<T: Simulation> SimulationContext<T, ()> {
+    #[cfg(target_arch = "wasm32")]
+    pub async fn run_headless(self, _inputs: Inputs,  _out_img: Arc<Mutex<Vec<u8>>>) {
+        log::error!("aftgraphs::SimulationContext::run_headless not supported on WASM");
+        unreachable!("aftgraphs::SimulationContext::run_headless not supported on WASM");
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    pub async fn run_headless(self, inputs: Inputs, headless_inputs: crate::headless::HeadlessInput, out_img: Arc<Mutex<Vec<u8>>>) {
+        use crate::cli::ARGUMENTS;
+        use crate::headless::HeadlessMetadata;
+        use std::sync::atomic::{Ordering::SeqCst, AtomicUsize};
+        use crossbeam::utils::Backoff;
+        use web_time::Duration;
+
+        log::debug!("aftgraphs::SimulationContext::run_headless entered");        
+
+        let input_values = if let Some(ref initial) = headless_inputs.initial_inputs {
+            let input_values = InputState::default();
+
+            {
+                let mut state = input_values.lock().await;
+                let state = state.as_mut();
+                for (name, val) in &initial.inputs {
+                    let name = name.replace('_', " ").replace('-', ".");
+                    state.insert(name, val.clone());
+                }
+            }
+            input_values
+        } else {
+            InputState::default()
+        };
+
+        let HeadlessMetadata {
+            duration, size: _, delta_t, 
+        } = headless_inputs.simulation;
+
+        let mut events = headless_inputs.blocks;
+        events.sort_by(|lhs, rhs| lhs.time.total_cmp(&rhs.time));
+        let mut events = events.into_iter();
+        let mut current_event = events.next();
+
+        let mut renderer = self.renderer.lock().await;
+        let simulation = Arc::new(Mutex::new(self.simulation));
+
+        let size = renderer.texture.as_ref().unwrap().size();
+        let size = (size.width, size.height);
+
+        let mut out_img = out_img.lock().await;
+
+        let (render_imgui, out_file) = {
+            let args = ARGUMENTS.read().await;
+            (args.render_imgui, args.headless.clone().expect("aftgraphs::simulation::SimulationContext::run_headless called with no output file").out_file)
+        };
+
+        let wait = Box::leak(Box::new(AtomicUsize::new(0)));
+        let send_frame = encoder::encoder(size, delta_t, out_file, wait);
+
+        let mut time = 0.0;
+        let delta_duration = Duration::from_secs_f64(delta_t);
+        while time <= duration {
+            renderer.update_delta_time(delta_duration);
+
+            if let Some(ref event) = current_event {
+                if time > event.time {
+                    log::debug!("aftgraphs::simulation::SimulationContext::run_headless: Handling headless event at time {time}");
+
+                    let mut state = input_values.lock().await;
+                    let state = state.as_mut();
+
+                    for (name, val) in &event.inputs {
+                        let name = name.replace('_', " ").replace('-', ".");
+                        state.insert(name, val.clone());
+                    }
+
+                    for event in &event.events {
+                        let mut simulation = simulation.lock().await;
+                        simulation.on_input(event.clone().into()).await;
+                    }
+
+                    current_event = events.next();
+                }
+            }
+
+            {
+                log::debug!("aftgraphs::SimulationContext::run_headless: Rendering simulation"
+                );
+                
+                let mut input_values = input_values.lock().await;
+                renderer.render(simulation.clone(), input_values.as_mut()).await;
+            }
+
+            if render_imgui {
+                log::debug!("aftgraphs::SimulationContext::run_headless: Drawing ui");
+
+                renderer.draw_ui(None, &inputs, input_values.clone()).await;
+            }
+
+            renderer.render_headless_finish(out_img.as_mut()).await;
+            wait.fetch_add(1, SeqCst);
+            send_frame.send(out_img.to_owned()).unwrap();
+            time += delta_t;            
+        }
+
+        let backoff = Backoff::new();
+        while wait.load(SeqCst) != 0 {
+            backoff.snooze();
+        }
+    }
+}
+
+impl<T: Simulation> SimulationContext<T, UiWinitPlatform> {
+    pub async fn run_display(mut self, inputs: Inputs) {
+        log::debug!("aftgraphs::SimulationContext::run_display entered");        
 
         let simulation = Arc::new(Mutex::new(self.simulation));
         let input_values = InputState::default();
@@ -68,13 +180,14 @@ impl<T: Simulation> SimulationContext<T> {
         // On wasm you want to wait until the first resize event to render anything
         let mut recieved_resize = false;
 
-        log::debug!("aftgraphs::SimulationContext::run: Entering winit event_loop");
-        self.event_loop
+        log::debug!("aftgraphs::SimulationContext::run_display: Entering winit event_loop");
+        let event_loop = self.event_loop.take().expect("aftgraphs::SimulationContext::run_display: no eventloop");
+        event_loop
             .run(move |event, win_target| {
                 win_target.set_control_flow(winit::event_loop::ControlFlow::Poll);
                 match event {
                     Event::UserEvent(input_event) => {
-                        log::debug!("aftgraphs::SimulationContext::run: UserEvent event found on window");
+                        log::debug!("aftgraphs::SimulationContext::run_display: UserEvent event found on window");
 
                         let simulation = simulation.clone();
                         block_on(async move {
@@ -87,7 +200,7 @@ impl<T: Simulation> SimulationContext<T> {
                         ..
                     } => {
                         log::info!(
-                            "aftgraphs::SimulationContext::run: Handling window resize event"
+                            "aftgraphs::SimulationContext::run_display: Handling window resize event"
                         );
 
                         recieved_resize = true;
@@ -134,7 +247,7 @@ impl<T: Simulation> SimulationContext<T> {
                         event: WindowEvent::CloseRequested,
                         ..
                     } => {
-                        log::info!("aftgraphs::SimulationContext::run: Exit requested");
+                        log::info!("aftgraphs::SimulationContext::run_display: Exit requested");
                         win_target.exit();
                     }
                     winit_event @ Event::WindowEvent {
@@ -154,7 +267,7 @@ impl<T: Simulation> SimulationContext<T> {
 
                         block_on(async move {
                             let mut simulation = simulation.lock().await;
-                            simulation.on_input(InputEvent::Keyboard(event)).await;
+                            simulation.on_input(InputEvent::Keyboard(RawKeyEvent { physical_key: event.physical_key, state: event.state })).await;
 
                             let window = window.lock().await;
                             if let Some(window) = window.as_ref() {
@@ -185,7 +298,7 @@ impl<T: Simulation> SimulationContext<T> {
                     winit_event @ Event::WindowEvent {
                         event: WindowEvent::MouseInput { .. }, ..
                     } => {
-                        log::debug!("aftgraphs::SimulationContext::run: MouseInput event found on window");
+                        log::debug!("aftgraphs::SimulationContext::run_display: MouseInput event found on window");
 
                         let (state, button) = match &winit_event {
                             Event::WindowEvent { event: WindowEvent::MouseInput { state, button, .. }, .. } => (*state, *button),
@@ -213,7 +326,7 @@ impl<T: Simulation> SimulationContext<T> {
                     }
                     Event::NewEvents(_) => {
                         log::debug!(
-                            "aftgraphs::SimulationContext::run: New events found on window"
+                            "aftgraphs::SimulationContext::run_display: New events found on window"
                         );
                         let now = web_time::Instant::now();
                         let delta_time = now - last_frame;
@@ -243,7 +356,7 @@ impl<T: Simulation> SimulationContext<T> {
                         event: WindowEvent::RedrawRequested,
                         ..
                     } => {
-                        log::debug!("aftgraphs::SimulationContext::run: window redraw requested");
+                        log::debug!("aftgraphs::SimulationContext::run_display: window redraw requested");
 
                         if cfg!(target_arch = "wasm32") && !recieved_resize {
                             return;
@@ -254,26 +367,24 @@ impl<T: Simulation> SimulationContext<T> {
                         let simulation = simulation.clone();
                         let input_values = input_values.clone();
                         let inputs = inputs.clone();
-                        let out_img = out_img.clone();
 
                         block_on(async move {
                             {
                                 log::debug!(
-                                    "aftgraphs::SimulationContext::run: Rendering simulation"
+                                    "aftgraphs::SimulationContext::run_display: Rendering simulation"
                                 );
                                 let mut input_values = input_values.lock().await;
                                 renderer
                                     .lock()
                                     .await
-                                    .render(simulation.clone(), input_values.as_mut(), out_img)
+                                    .render(simulation.clone(), input_values.as_mut())
                                     .await;
                             }
 
-                            log::debug!("aftgraphs::SimulationContext::run: Updating input values");
+                            log::debug!("aftgraphs::SimulationContext::run_display: Updating input values");
                             let mut renderer = renderer.lock().await;
-                            if let Some(window) = window.lock().await.as_ref() {
-                                renderer.draw_ui(window, inputs, input_values).await;
-                            }
+                            let window = window.lock().await;
+                            renderer.draw_ui(window.as_ref(), &inputs, input_values).await;
                         });
                     }
                     event => {
@@ -290,6 +401,6 @@ impl<T: Simulation> SimulationContext<T> {
                     }
                 }
             })
-            .expect("aftgraphs::SimulationContext::run: winit::event_loop::EventLoop::run unexpectedly failed");
+            .expect("aftgraphs::SimulationContext::run_display: winit::event_loop::EventLoop::run_display unexpectedly failed");
     }
 }
