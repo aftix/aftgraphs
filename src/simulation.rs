@@ -69,8 +69,6 @@ impl<T: Simulation> SimulationContext<T, ()> {
     ) -> anyhow::Result<()> {
         use crate::cli::ARGUMENTS;
         use crate::headless::HeadlessMetadata;
-        use crossbeam::utils::Backoff;
-        use std::sync::atomic::{AtomicUsize, Ordering::SeqCst};
         use web_time::Duration;
 
         log::debug!("aftgraphs::simulation::SimulationContext::run_headless entered");
@@ -122,8 +120,7 @@ impl<T: Simulation> SimulationContext<T, ()> {
             (args.render_imgui, headless.out_file)
         };
 
-        let wait = Box::leak(Box::new(AtomicUsize::new(0)));
-        let send_frame = encoder::encoder(size, delta_t, out_file, wait);
+        let (send_frame, finished, handle) = encoder::encoder(size, delta_t, out_file);
 
         let mut time = 0.0;
         let delta_duration = Duration::from_secs_f64(delta_t);
@@ -175,7 +172,6 @@ impl<T: Simulation> SimulationContext<T, ()> {
                 .render_headless_finish(out_img.as_mut())
                 .await
                 .map_err(|e| anyhow::anyhow!("aftgraphs::simulation::render_headless: {e}"))?;
-            wait.fetch_add(1, SeqCst);
             send_frame.send(out_img.to_owned()).map_err(|err| {
                 log::error!("aftgraphs::simulation::SimulationContext::run_headless: Failed to send frame on channel: {err}");
                 anyhow::anyhow!("aftgraphs::simulation::SimulationContext::run_headless: Failed to send frame on channel: {err}")
@@ -183,12 +179,16 @@ impl<T: Simulation> SimulationContext<T, ()> {
             time += delta_t;
         }
 
-        let backoff = Backoff::new();
-        while wait.load(SeqCst) != 0 {
-            backoff.snooze();
+        if let Err(e) = finished.send(()) {
+            log::warn!("aftgraphs::simulation::SimulationContext::run_headless: error signaling end of frames to encoding thread: {e}");
         }
 
-        Ok(())
+        if let Err(e) = handle.join() {
+            log::error!("aftgraphs::simulation::SimulationContext::run_headless: encoding thread panicked: {e:?}");
+            Err(anyhow::anyhow!("aftgraphs::simulation::SimulationContext::run_headless: encoding thread panicked: {e:?}"))
+        } else {
+            Ok(())
+        }
     }
 }
 

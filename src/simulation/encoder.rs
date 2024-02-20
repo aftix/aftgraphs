@@ -1,11 +1,10 @@
-use crossbeam::channel;
+use crossbeam::{channel, select};
 use dcv_color_primitives::{convert_image, get_buffers_size, ColorSpace, ImageFormat, PixelFormat};
 use std::{
     fs::File,
     io::Write,
     path::{Path, PathBuf},
-    sync::atomic::{AtomicUsize, Ordering::SeqCst},
-    thread,
+    thread::{self, JoinHandle},
 };
 use x264::{Encoder, Param, Picture};
 
@@ -17,12 +16,16 @@ pub fn encoder(
     size: (u32, u32),
     delta_t: f64,
     out_file: impl AsRef<Path>,
-    wait: &'static AtomicUsize,
-) -> channel::Sender<Vec<u8>> {
-    let (send, recv) = channel::unbounded();
+) -> (
+    channel::Sender<Vec<u8>>,
+    channel::Sender<()>,
+    JoinHandle<()>,
+) {
+    let (send, recv) = channel::bounded(8);
+    let (send_finished, recv_finished) = channel::bounded(1);
     let out_file = out_file.as_ref().to_owned();
 
-    thread::spawn(move || {
+    let handle = thread::spawn(move || {
         let mut params = Param::new()
             .set_dimension(size.0 as usize, size.1 as usize)
             .param_parse("repeat_headers", "1")
@@ -38,26 +41,28 @@ pub fn encoder(
             size: (size.0 as usize, size.1 as usize),
             out_file,
             channel: recv,
+            finished: recv_finished,
             picture,
             encoder,
         };
 
-        handler.encoding_loop(wait);
+        handler.encoding_loop();
     });
 
-    send
+    (send, send_finished, handle)
 }
 
 struct EncoderHandler {
     size: (usize, usize),
     out_file: PathBuf,
     channel: channel::Receiver<Vec<u8>>,
+    finished: channel::Receiver<()>,
     picture: Picture,
     encoder: Encoder,
 }
 
 impl EncoderHandler {
-    fn encoding_loop(mut self, wait: &AtomicUsize) {
+    fn encoding_loop(mut self) {
         let mut out_file = File::create(self.out_file.clone())
             .expect("aftgraphs::simulation::encoder::EncoderHandler: Failed to create output file");
 
@@ -65,61 +70,54 @@ impl EncoderHandler {
         let missing_bytes = wgpu::COPY_BYTES_PER_ROW_ALIGNMENT as usize
             - (bytes_per_row % wgpu::COPY_BYTES_PER_ROW_ALIGNMENT as usize);
         let bytes_per_row = bytes_per_row + missing_bytes;
-        for (frame_idx, frame) in self.channel.into_iter().enumerate() {
-            let encoded_frame = Self::encode_frame(self.size, bytes_per_row, frame);
 
-            self.picture = self.picture.set_timestamp(frame_idx as i64);
-            self.picture
-                .as_mut_slice(0)
-                .unwrap()
-                .copy_from_slice(encoded_frame.0.as_slice());
-            self.picture
-                .as_mut_slice(1)
-                .unwrap()
-                .copy_from_slice(encoded_frame.1.as_slice());
-            self.picture
-                .as_mut_slice(2)
-                .unwrap()
-                .copy_from_slice(encoded_frame.2.as_slice());
+        let mut frame_idx = 0;
+        'outer: loop {
+            select! {
+                recv(self.channel) -> frame => {
+                    let frame = match frame {
+                        Ok(f) => f,
+                        Err(e) => {
+                            log::warn!("aftgraphs::simulation::encoder::EncoderHandler: Error recieving frame: {e:?}");
+                            continue;
+                        },
+                    };
 
-            if let Some((nal, _, _)) = self.encoder.encode(&self.picture).unwrap() {
-                out_file.write_all(nal.as_bytes()).expect("aftgraphs::simulation::encoder::EncoderHandler: Failed to write frame to output file");
+                    let encoded_frame = Self::encode_frame(self.size, bytes_per_row, frame);
+
+                    self.picture = self.picture.set_timestamp(frame_idx as i64);
+                    self.picture
+                        .as_mut_slice(0)
+                        .unwrap()
+                        .copy_from_slice(encoded_frame.0.as_slice());
+                    self.picture
+                        .as_mut_slice(1)
+                        .unwrap()
+                        .copy_from_slice(encoded_frame.1.as_slice());
+                    self.picture
+                        .as_mut_slice(2)
+                        .unwrap()
+                        .copy_from_slice(encoded_frame.2.as_slice());
+
+                    if let Some((nal, _, _)) = self.encoder.encode(&self.picture).unwrap() {
+                        out_file.write_all(nal.as_bytes()).expect("aftgraphs::simulation::encoder::EncoderHandler: Failed to write frame to output file");
+                    }
+
+                    frame_idx += 1;
+                }
+                recv(self.finished) -> _ => {
+                    break 'outer;
+                }
             }
-
-            wait.fetch_sub(1, SeqCst);
         }
 
         while self.encoder.delayed_frames() {
-            if let Some((nal, _, _)) = self.encoder.encode(None).unwrap() {
-                out_file.write_all(nal.as_bytes()).expect("aftgraphs::simulation::encoder::EncoderHandler: Failed to write frame to output file");
+            match self.encoder.encode(None) {
+                Ok(Some((nal, _, _))) => out_file.write_all(nal.as_bytes()).expect("aftgraphs::simulation::encoder::EncoderHandler: Failed to write frame to output file"),
+                Ok(None) => log::info!("aftgraphs::simulation::encoder::EncoderHandler: delayed frame encoding resulted in None"),
+                Err(e) => log::warn!("aftgraphs::simulation::encoder::EncoderHandler: delayed frame encoding resulted in Err: {e}"),
             }
         }
-    }
-
-    #[allow(dead_code)]
-    fn srgb_to_rgb(pixel: u32) -> u32 {
-        let s_r = ((pixel & 0xFF000000) >> 24) as u8;
-        let s_g = ((pixel & 0x00FF0000) >> 16) as u8;
-        let s_b = ((pixel & 0x0000FF00) >> 8) as u8;
-
-        let u8_to_f64 = |val: u8| val as f64 / 255.0;
-        let f64_to_u8 = |val: f64| (val * 255.0) as u8;
-
-        let convert = |sval: u8| {
-            let val = u8_to_f64(sval);
-            let linear = if val <= 0.04045 {
-                val / 12.92
-            } else {
-                ((val + 0.555) / 1.055).powf(2.4)
-            };
-            f64_to_u8(linear)
-        };
-
-        let l_r = convert(s_r) as u32;
-        let l_g = convert(s_g) as u32;
-        let l_b = convert(s_b) as u32;
-
-        (l_r << 24) + (l_g << 16) + (l_b << 8)
     }
 
     fn encode_frame(
