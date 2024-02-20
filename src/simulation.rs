@@ -45,6 +45,7 @@ mod builder;
 pub use builder::{BuilderState, SimulationBuilder};
 
 #[cfg(not(target_arch = "wasm32"))]
+#[cfg(feature = "x264")]
 mod encoder;
 
 impl<T: Simulation> SimulationContext<T, ()> {
@@ -61,6 +62,19 @@ impl<T: Simulation> SimulationContext<T, ()> {
     }
 
     #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(not(feature = "x264"))]
+    pub async fn run_headless(
+        self,
+        inputs: Inputs,
+        headless_inputs: crate::headless::HeadlessInput,
+        out_img: Arc<Mutex<Vec<u8>>>,
+    ) -> anyhow::Result<()> {
+        log::error!("aftgraphs::simulation::SimulationContext::run_headless: not compiled using 'x264' feature");
+        Err(anyhow::anyhow!("aftgraphs::simulation::SimulationContext::run_headless: not compiled using 'x264' feature"))
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(feature = "x264")]
     pub async fn run_headless(
         self,
         inputs: Inputs,
