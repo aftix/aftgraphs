@@ -1,8 +1,12 @@
 use super::{InputEvent, Simulation};
-use crate::ui::UiPlatform;
-use crate::{render::Renderer, ui::UiWinitPlatform};
+use crate::{
+    render::Renderer,
+    ui::{UiPlatform, UiWinitPlatform},
+    GraphicsInitError,
+};
 use async_mutex::Mutex;
 use std::{marker::PhantomData, rc::Rc, sync::Arc};
+use thiserror::Error;
 use winit::{event_loop::EventLoop, window::Window};
 
 mod sealed {
@@ -73,23 +77,47 @@ impl<T: Simulation, P: UiPlatform> SimulationBuilder<T, P, BuilderInit> {
     }
 }
 
+#[derive(Error, Debug, Clone)]
+pub enum SimulationBuilderError {
+    #[error("building simulation for headless rendering while using display rendering builder")]
+    HeadlessInDisplayMode,
+    #[error("building simulation for display rendering while using headless rendering builder")]
+    DisplayInHeadlessMode,
+    #[error("failed to initialize headless renderer: {0}")]
+    HeadlessInitFailed(#[from] GraphicsInitError),
+    #[error(
+        "building simulation for headless rendering after calling SimulationBuilder::event_loop"
+    )]
+    HeadlessWithEventLoop,
+    #[error("building simulation for display rendering without calling Simulation::event_loop")]
+    DisplayWithoutEventLoop,
+}
+
 impl<T: Simulation> SimulationBuilder<T, (), BuilderComplete> {
     #[cfg(not(target_arch = "wasm32"))]
-    pub async fn build_headless(self) -> anyhow::Result<super::SimulationContext<T, ()>> {
+    pub async fn build_headless(
+        self,
+    ) -> Result<super::SimulationContext<T, ()>, SimulationBuilderError> {
+        use SimulationBuilderError as SBE;
+
         log::info!("aftgraphs::simulation::SimulationBuilder: Building headless renderer");
 
         let size = self.headless.ok_or_else(|| {
-            log::error!("aftgraphs::simulation::SimulationBuilder::build_headless: building headless renderer in display mode");
-            anyhow::anyhow!("aftgraphs::simulation::SimulationBuilder::build_headless: building headless renderer in display mode")
+            log::error!(
+                "aftgraphs::simulation::SimulationBuilder::build_headless: {:?}",
+                SBE::HeadlessInDisplayMode
+            );
+            SBE::HeadlessInDisplayMode
         })?;
 
-        let renderer = crate::headless::init(size).await.map_err(|e| {
-            anyhow::anyhow!("aftgraphs::simulation::SimulationBuilder::build_headless: {e}")
-        })?;
+        let renderer = crate::headless::init(size).await?;
 
         if self.event_loop.is_some() {
-            log::error!("aftgraphs::simulation::SimulationContext::build_headless: building headless renderer with an event loop");
-            anyhow::bail!("aftgraphs::simulation::SimulationContext::build_headless: building headless renderer with an event loop");
+            log::error!(
+                "aftgraphs::simulation::SimulationContext::build_headless: {:?}",
+                SBE::HeadlessWithEventLoop
+            );
+            return Err(SBE::HeadlessWithEventLoop);
         }
 
         Ok(super::SimulationContext {
@@ -102,24 +130,32 @@ impl<T: Simulation> SimulationBuilder<T, (), BuilderComplete> {
 }
 
 impl<T: Simulation> SimulationBuilder<T, UiWinitPlatform, BuilderComplete> {
-    pub async fn build(self) -> anyhow::Result<super::SimulationContext<T, UiWinitPlatform>> {
+    pub async fn build(
+        self,
+    ) -> Result<super::SimulationContext<T, UiWinitPlatform>, SimulationBuilderError> {
+        use SimulationBuilderError as SBE;
+
         log::info!("aftgraphs::simulation::SimulationBuilder: Building display renderer");
 
         let renderer = {
             let window = self.window.lock().await;
             let window = window.as_ref().ok_or_else(|| {
-                log::error!("aftgraphs::simulation::SimulationBuilder::build: bulding display renderer without a window");
-                anyhow::anyhow!("aftgraphs::simulation::SimulationBuilder::build: bulding display renderer without a window")
+                log::error!(
+                    "aftgraphs::simulation::SimulationBuilder::build: {}",
+                    SBE::DisplayInHeadlessMode
+                );
+                SBE::DisplayInHeadlessMode
             })?;
 
-            crate::display::init(window).await.map_err(|e| {
-                anyhow::anyhow!("aftgraphs::simulation::SimulationBuilder::build: {e}")
-            })?
+            crate::display::init(window).await?
         };
 
         if self.event_loop.is_none() {
-            log::error!("aftgraphs::simulation::SimulationContext::build: building display renderer without an event loop");
-            anyhow::bail!("aftgraphs::simulation::SimulationContext::build: building display renderer without an event loop");
+            log::error!(
+                "aftgraphs::simulation::SimulationContext::build: {}",
+                SBE::DisplayWithoutEventLoop
+            );
+            return Err(SBE::DisplayWithoutEventLoop);
         }
 
         Ok(super::SimulationContext {

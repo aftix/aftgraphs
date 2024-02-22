@@ -1,7 +1,7 @@
 use crate::render::Renderer;
 use crate::ui::Ui;
+use crate::GraphicsInitError;
 use crate::{input::InputValue, simulation::InputEvent};
-use anyhow::anyhow;
 use async_mutex::Mutex;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -72,13 +72,10 @@ pub struct HeadlessInput {
     pub blocks: Vec<HeadlessInputBlock>,
 }
 
-#[cfg(target_arch = "wasm32")]
-pub async fn init(_size: (u32, u32)) -> anyhow::Result<Renderer> {
-    anyhow::anyhow!("aftgraphs::headless::init: headless rendering not supported on WASM")
-}
-
 #[cfg(not(target_arch = "wasm32"))]
-pub async fn init(mut size: (u32, u32)) -> anyhow::Result<Renderer<()>> {
+pub async fn init(mut size: (u32, u32)) -> Result<Renderer<()>, GraphicsInitError> {
+    use GraphicsInitError as HIE;
+
     log::debug!("aftgraphs::headless::init: Initializing renderer");
 
     size.0 = size.0.max(1);
@@ -93,7 +90,7 @@ pub async fn init(mut size: (u32, u32)) -> anyhow::Result<Renderer<()>> {
             compatible_surface: None,
         })
         .await
-        .ok_or_else(|| anyhow!("wgpu::Instance::request_adapter failed to find adapater"))?;
+        .ok_or(HIE::NoAdapter)?;
 
     log::debug!("aftgraphs::headless::init: Requesting rendering device");
     let (device, queue) = adapter
@@ -106,8 +103,7 @@ pub async fn init(mut size: (u32, u32)) -> anyhow::Result<Renderer<()>> {
             },
             None,
         )
-        .await
-        .map_err(|err| anyhow!("wgpu::Adapter::request_device: {}", err))?;
+        .await?;
 
     log::debug!("aftgraphs::headless::init: Adding wgpu error handler");
     fn unhandled_error(error: wgpu::Error) {

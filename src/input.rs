@@ -4,7 +4,9 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::convert::{AsMut, AsRef};
 use std::fs::read_to_string;
+use std::io;
 use std::path::Path;
+use thiserror::Error;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 pub enum Input {
@@ -86,15 +88,22 @@ pub struct Inputs {
     pub blocks: Vec<InputBlock>,
 }
 
+#[derive(Error, Debug)]
+pub enum InputsError {
+    #[error("failed to parse inputs TOML: {0:?}")]
+    TomlError(#[from] toml::de::Error),
+    #[error("failed to read file: {0:?}")]
+    FileError(#[from] io::Error),
+}
+
 impl Inputs {
-    pub fn new(data: impl AsRef<str>) -> anyhow::Result<Self> {
-        toml::from_str(data.as_ref()).map_err(|err| anyhow::anyhow!("Inputs::new: {}", err))
+    pub fn new(data: impl AsRef<str>) -> Result<Self, InputsError> {
+        toml::from_str(data.as_ref()).map_err(Into::into)
     }
 
-    pub fn from_file(path: impl AsRef<Path>) -> anyhow::Result<Self> {
-        let data = read_to_string(path)
-            .map_err(|err| anyhow::anyhow!("Inputs::from_file: failed to read file: {}", err))?;
-        Self::new(data).map_err(|err| anyhow::anyhow!("Inputs::from_file: {}", err))
+    pub fn from_file(path: impl AsRef<Path>) -> Result<Self, InputsError> {
+        let data = read_to_string(path)?;
+        Self::new(data)
     }
 }
 

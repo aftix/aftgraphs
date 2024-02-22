@@ -1,10 +1,11 @@
 use crate::input::{InputState, InputValue, Inputs};
 use crate::simulation::Simulation;
-use crate::ui::{Ui, UiPlatform};
+use crate::ui::{Ui, UiDrawError, UiPlatform};
 use async_mutex::Mutex;
 use std::collections::HashMap;
 use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
+use thiserror::Error;
 use winit::window::Window;
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -94,6 +95,26 @@ pub struct Renderer<P: UiPlatform> {
     pub platform: P,
     pub ui: Ui,
     pub aspect_ratio: f64,
+}
+
+#[derive(Error, Clone, Debug)]
+pub enum RenderError {
+    #[error("WGPU surface dropped frame: {0}")]
+    DrawFrameDropped(#[from] wgpu::SurfaceError),
+    #[error("draw_ui called without an active rendering pass active or an active WGPU surface")]
+    DrawUiMissingRenderPass,
+    #[error("drawing Ui failed: {0}")]
+    DrawUiError(#[from] UiDrawError),
+    #[error("attempted headless rendering without an active WGPU texture_view")]
+    HeadlessWithoutTextureView,
+    #[error("attempted to finish headless rendering pass without an active WGPU texture")]
+    HeadlessWithoutTexture,
+    #[error("render_headless_finished called without an active WGPU buffer")]
+    HeadlessWithoutBuffer,
+    #[error("render operation used without an active rendering pass")]
+    MissingRenderPass,
+    #[error("failed to map WGPU buffer to CPU slice")]
+    FailedBufferMap,
 }
 
 impl<P: UiPlatform> Renderer<P> {
@@ -215,27 +236,34 @@ impl<P: UiPlatform> Renderer<P> {
         }
     }
 
-    pub async fn render_headless_finish(&self, out_img: &mut Vec<u8>) -> anyhow::Result<()> {
+    pub async fn render_headless_finish(&self, out_img: &mut Vec<u8>) -> Result<(), RenderError> {
+        use RenderError as RE;
+
         let u32_size = std::mem::size_of::<u32>() as u32;
         let texture = self.texture.as_ref().ok_or_else(|| {
             log::error!(
-                "aftgraphs::render::Renderer::render_headless_finish: no texture initialized"
+                "aftgraphs::render::Renderer::render_headless_finish: {}",
+                RE::HeadlessWithoutTexture,
             );
-            anyhow::anyhow!(
-                "aftgraphs::render::Renderer::render_headless_finish: no texture initialized"
-            )
+            RE::HeadlessWithoutTexture
         })?;
         let texture_size = texture.size();
 
         let mut pass = self.render_pass.lock().await;
         let mut pass = pass.take().ok_or_else(|| {
-            log::error!("aftgraphs::render::Renderer::render_headless_finish called with None Renderer::render_pass");
-            anyhow::anyhow!("aftgraphs::render::Renderer::render_headless_finish called with None Renderer::render_pass")
+            log::error!(
+                "aftgraphs::render::Renderer::render_headless_finish: {}",
+                RE::MissingRenderPass
+            );
+            RE::MissingRenderPass
         })?;
 
         let buffer = self.buffer.as_ref().ok_or_else(|| {
-            log::error!("aftgraphs::render::Renderer::render_headless_finish called with None Renderer::buffer");
-            anyhow::anyhow!("aftgraphs::render::Renderer::render_headless_finish called with None Renderer::buffer")
+            log::error!(
+                "aftgraphs::render::Renderer::render_headless_finish: {}",
+                RE::HeadlessWithoutBuffer
+            );
+            RE::HeadlessWithoutBuffer
         })?;
 
         let bytes_per_row = u32_size * texture_size.width;
@@ -274,16 +302,21 @@ impl<P: UiPlatform> Renderer<P> {
                 tx.send(result).expect("aftgraphs::render::Renderer::render_headless_finish: map_async closure failed to send");
             });
             self.device.poll(wgpu::Maintain::Wait);
-            rx.receive().await.ok_or_else(|| {
-                log::error!(
-                    "aftgraphs::render::Renderer::render_headless_finish channel is closed"
-                );
-                anyhow::anyhow!(
-                    "aftgraphs::render::Renderer::render_headless_finish channel is closed"
-                )
-            })?.map_err(|e| {
-                    log::error!("aftgraphs::render::Renderer::render_headless_finish channel failed to receive: {e:?}");
-                    anyhow::anyhow!("aftgraphs::render::Renderer::render_headless_finish channel failed to receive: {e:?}")
+            rx.receive()
+                .await
+                .ok_or_else(|| {
+                    log::error!(
+                        "aftgraphs::render::Renderer::render_headless_finish: {}",
+                        RE::FailedBufferMap,
+                    );
+                    RE::FailedBufferMap
+                })?
+                .map_err(|e| {
+                    log::error!(
+                        "aftgraphs::render::Renderer::render_headless_finish: {}: {e:?}",
+                        RE::FailedBufferMap
+                    );
+                    RE::FailedBufferMap
                 })?;
 
             let data = buffer_slice.get_mapped_range();
@@ -299,7 +332,9 @@ impl<P: UiPlatform> Renderer<P> {
         window: Option<&Window>,
         inputs: &Inputs,
         state: InputState,
-    ) -> anyhow::Result<()> {
+    ) -> Result<(), RenderError> {
+        use RenderError as RE;
+
         let ui = self.ui.context_mut();
 
         let frame = ui.new_frame();
@@ -307,18 +342,15 @@ impl<P: UiPlatform> Renderer<P> {
 
         let mut pass = self.render_pass.lock().await;
         if pass.is_none() {
-            let surface =  self.surface.as_ref().ok_or_else(|| {
-                log::error!("aftgraphs::render::Renderer::draw_ui: called without a RendererPass and no Surface");
-                anyhow::anyhow!("aftgraphs::render::Renderer::draw_ui: called without a RendererPass and no Surface")
+            let surface = self.surface.as_ref().ok_or_else(|| {
+                log::error!(
+                    "aftgraphs::render::Renderer::draw_ui: {}",
+                    RE::DrawUiMissingRenderPass
+                );
+                RE::DrawUiMissingRenderPass
             })?;
 
-            let frame = match surface.get_current_texture() {
-                Ok(frame) => frame,
-                Err(e) => {
-                    log::warn!("aftgraphs::render::Renderer::draw_ui: dropped frame: {e:?}");
-                    return Ok(());
-                }
-            };
+            let frame = surface.get_current_texture()?;
 
             let view = frame
                 .texture
@@ -346,8 +378,11 @@ impl<P: UiPlatform> Renderer<P> {
                 .as_ref()
                 .map_or(self.texture_view.as_ref(), Option::Some)
                 .ok_or_else(|| {
-                    log::error!("aftgraphs::render::Renderer::draw_ui: headless rendering without Renderer texture_view");
-                    anyhow::anyhow!("aftgraphs::render::Renderer::draw_ui: headless rendering without Renderer texture_view")
+                    log::error!(
+                        "aftgraphs::render::Renderer::draw_ui: {}",
+                        RE::HeadlessWithoutTextureView
+                    );
+                    RE::HeadlessWithoutTextureView
                 })?;
 
             let mut render_pass = pass.encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -365,9 +400,7 @@ impl<P: UiPlatform> Renderer<P> {
                 occlusion_query_set: None,
             });
 
-            self.ui
-                .draw(&mut render_pass, &self.queue, &self.device)
-                .map_err(|e| anyhow::anyhow!("aftgraphs::render::Renderer::draw_ui: {e}"))?;
+            self.ui.draw(&mut render_pass, &self.queue, &self.device)?;
         }
 
         if !self.headless {

@@ -1,12 +1,12 @@
 use crate::{
     render::Renderer,
     ui::{Ui, UiWinitPlatform},
+    GraphicsInitError,
 };
-use anyhow::anyhow;
 use async_mutex::Mutex;
 use winit::window::Window;
 
-pub async fn init(window: &Window) -> anyhow::Result<Renderer<UiWinitPlatform>> {
+pub async fn init(window: &Window) -> Result<Renderer<UiWinitPlatform>, GraphicsInitError> {
     log::debug!("aftgraphs::display::init: Initializing display");
 
     let mut size = window.inner_size();
@@ -16,11 +16,7 @@ pub async fn init(window: &Window) -> anyhow::Result<Renderer<UiWinitPlatform>> 
 
     log::debug!("aftgraphs::display::init: Creating surface");
     let instance = wgpu::Instance::default();
-    let surface = unsafe {
-        instance
-            .create_surface(&window)
-            .map_err(|err| anyhow!("wgpu::Instance::create_surface: {}", err))?
-    };
+    let surface = unsafe { instance.create_surface(&window)? };
     let adapter = instance
         .request_adapter(&wgpu::RequestAdapterOptions {
             power_preference: wgpu::PowerPreference::default(),
@@ -28,7 +24,7 @@ pub async fn init(window: &Window) -> anyhow::Result<Renderer<UiWinitPlatform>> 
             compatible_surface: Some(&surface),
         })
         .await
-        .expect("Failed to find adapter");
+        .ok_or(GraphicsInitError::NoAdapter)?;
 
     log::debug!("aftgraphs::display::init: Requesting rendering device");
     let (device, queue) = adapter
@@ -41,8 +37,7 @@ pub async fn init(window: &Window) -> anyhow::Result<Renderer<UiWinitPlatform>> 
             },
             None,
         )
-        .await
-        .map_err(|err| anyhow!("wgpu::Adapter::request_device: {}", err))?;
+        .await?;
 
     log::debug!("aftgrahps::display::init: Adding wgpu error handler");
     fn unhandled_error(error: wgpu::Error) {

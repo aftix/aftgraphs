@@ -1,5 +1,8 @@
+use std::convert::Infallible;
 use web_sys::{self, Document, HtmlElement};
 use winit::window::Window;
+
+pub type UiDrawError = Infallible;
 
 pub struct UiWinitPlatform;
 
@@ -61,7 +64,7 @@ impl Ui {
         _render_pass: &mut wgpu::RenderPass<'_>,
         _queue: &wgpu::Queue,
         _device: &wgpu::Device,
-    ) -> anyhow::Result<()> {
+    ) -> Result<(), UiDrawError> {
         Ok(())
     }
 }
