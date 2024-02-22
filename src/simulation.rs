@@ -1,9 +1,12 @@
-use crate::block_on;
-use crate::input::{InputState, InputValue, Inputs};
-use crate::render::Renderer;
-use crate::ui::{UiPlatform, UiWinitPlatform};
+use crate::{
+    block_on,
+    input::{InputState, InputValue, Inputs},
+    render::{RenderError, Renderer},
+    ui::{UiPlatform, UiWinitPlatform},
+};
 use async_mutex::Mutex;
 use std::{collections::HashMap, rc::Rc, sync::Arc};
+use thiserror::Error;
 pub use winit::event::{ElementState, MouseButton, RawKeyEvent};
 use winit::{
     dpi::{PhysicalPosition, PhysicalSize},
@@ -48,13 +51,31 @@ pub use builder::{BuilderState, SimulationBuilder};
 #[cfg(feature = "x264")]
 mod encoder;
 
+#[derive(Error, Clone, Debug)]
+pub enum SimulationRunError {
+    #[error("ran headless rendering on a binary not compiled with the 'x264' feature")]
+    HeadlessWithoutx264,
+    #[error("headless rendering used without an initialized draw target texture")]
+    HeadlessWithoutTexture,
+    #[error("headless rendering used without an output file")]
+    HeadlessWithoutOutputFile,
+    #[error("headless video encoding failed: {0}")]
+    HeadlessEncodingError(String),
+    #[error("display rendering used without a winit::event::EventLoop")]
+    DisplayWithoutEventLoop,
+    #[error("display rendering winit::event::EventLoop ended unexpectedly: {0}")]
+    DisplayEventLoopFailure(String),
+    #[error("rendering failed: {0}")]
+    RenderFailure(#[from] RenderError),
+}
+
 impl<T: Simulation> SimulationContext<T, ()> {
     #[cfg(target_arch = "wasm32")]
     pub async fn run_headless(
         self,
         _inputs: Inputs,
         _out_img: Arc<Mutex<Vec<u8>>>,
-    ) -> anyhow::Result<()> {
+    ) -> Result<(), SimulationRunError> {
         log::error!("aftgraphs::simulation::SimulationContext::run_headless not supported on WASM");
         unreachable!(
             "aftgraphs::simulation::SimulationContext::run_headless not supported on WASM"
@@ -68,9 +89,12 @@ impl<T: Simulation> SimulationContext<T, ()> {
         inputs: Inputs,
         headless_inputs: crate::headless::HeadlessInput,
         out_img: Arc<Mutex<Vec<u8>>>,
-    ) -> anyhow::Result<()> {
-        log::error!("aftgraphs::simulation::SimulationContext::run_headless: not compiled using 'x264' feature");
-        Err(anyhow::anyhow!("aftgraphs::simulation::SimulationContext::run_headless: not compiled using 'x264' feature"))
+    ) -> Result<(), SimulationRunError> {
+        log::error!(
+            "aftgraphs::simulation::SimulationContext::run_headless: {}",
+            SimulationRunError::HeadlessWithoutx264
+        );
+        Err(SimulationRunError::HeadlessWithoutx264)
     }
 
     #[cfg(not(target_arch = "wasm32"))]
@@ -80,10 +104,11 @@ impl<T: Simulation> SimulationContext<T, ()> {
         inputs: Inputs,
         headless_inputs: crate::headless::HeadlessInput,
         out_img: Arc<Mutex<Vec<u8>>>,
-    ) -> anyhow::Result<()> {
+    ) -> Result<(), SimulationRunError> {
         use crate::cli::ARGUMENTS;
         use crate::headless::HeadlessMetadata;
         use web_time::Duration;
+        use SimulationRunError as SRE;
 
         log::debug!("aftgraphs::simulation::SimulationContext::run_headless entered");
 
@@ -117,10 +142,17 @@ impl<T: Simulation> SimulationContext<T, ()> {
         let mut renderer = self.renderer.lock().await;
         let simulation = Arc::new(Mutex::new(self.simulation));
 
-        let size = renderer.texture.as_ref().ok_or_else(|| {
-            log::error!("aftgraphs::simulation::SimulationContext::run_headless: No texture initialized");
-            anyhow::anyhow!("aftgraphs::simulation::SimulationContext::run_headless: No texture initialized") 
-        })?.size();
+        let size = renderer
+            .texture
+            .as_ref()
+            .ok_or_else(|| {
+                log::error!(
+                    "aftgraphs::simulation::SimulationContext::run_headless: {}",
+                    SRE::HeadlessWithoutTexture
+                );
+                SRE::HeadlessWithoutTexture
+            })?
+            .size();
         let size = (size.width, size.height);
 
         let mut out_img = out_img.lock().await;
@@ -128,8 +160,11 @@ impl<T: Simulation> SimulationContext<T, ()> {
         let (render_imgui, out_file) = {
             let args = ARGUMENTS.read().await;
             let headless = args.headless.clone().ok_or_else(|| {
-                log::error!("aftgraphs::simulation::SimulationContext::run_headless called with no output file");
-                anyhow::anyhow!("aftgraphs::simulation::SimulationContext::run_headless called with no output file")
+                log::error!(
+                    "aftgraphs::simulation::SimulationContext::run_headless: {}",
+                    SRE::HeadlessWithoutOutputFile
+                );
+                SRE::HeadlessWithoutOutputFile
             })?;
             (args.render_imgui, headless.out_file)
         };
@@ -178,17 +213,13 @@ impl<T: Simulation> SimulationContext<T, ()> {
 
                 renderer
                     .draw_ui(None, &inputs, input_values.clone())
-                    .await
-                    .map_err(|e| anyhow::anyhow!("aftgraphs::simulation::render_headless: {e}"))?;
+                    .await?;
             }
 
-            renderer
-                .render_headless_finish(out_img.as_mut())
-                .await
-                .map_err(|e| anyhow::anyhow!("aftgraphs::simulation::render_headless: {e}"))?;
-            send_frame.send(out_img.to_owned()).map_err(|err| {
-                log::error!("aftgraphs::simulation::SimulationContext::run_headless: Failed to send frame on channel: {err}");
-                anyhow::anyhow!("aftgraphs::simulation::SimulationContext::run_headless: Failed to send frame on channel: {err}")
+            renderer.render_headless_finish(out_img.as_mut()).await?;
+            send_frame.send(out_img.to_owned()).map_err(|e| {
+                log::error!("aftgraphs::simulation::SimulationContext::run_headless: Failed to send frame on channel: {e}");
+                SRE::HeadlessEncodingError(format!("{e:?}"))
             })?;
             time += delta_t;
         }
@@ -199,7 +230,7 @@ impl<T: Simulation> SimulationContext<T, ()> {
 
         if let Err(e) = handle.join() {
             log::error!("aftgraphs::simulation::SimulationContext::run_headless: encoding thread panicked: {e:?}");
-            Err(anyhow::anyhow!("aftgraphs::simulation::SimulationContext::run_headless: encoding thread panicked: {e:?}"))
+            Err(SRE::HeadlessEncodingError(format!("{e:?}")))
         } else {
             Ok(())
         }
@@ -207,7 +238,9 @@ impl<T: Simulation> SimulationContext<T, ()> {
 }
 
 impl<T: Simulation> SimulationContext<T, UiWinitPlatform> {
-    pub async fn run_display(mut self, inputs: Inputs) -> anyhow::Result<()> {
+    pub async fn run_display(mut self, inputs: Inputs) -> Result<(), SimulationRunError> {
+        use SimulationRunError as SRE;
+
         log::debug!("aftgraphs::simulation::SimulationContext::run_display entered");
 
         let simulation = Arc::new(Mutex::new(self.simulation));
@@ -232,8 +265,11 @@ impl<T: Simulation> SimulationContext<T, UiWinitPlatform> {
             "aftgraphs::simulation::SimulationContext::run_display: Entering winit event_loop"
         );
         let event_loop = self.event_loop.take().ok_or_else(|| {
-            log::error!("aftgraphs::simulation::SimulationContext::run_display: no eventloop");
-            anyhow::anyhow!("aftgraphs::simulation::SimulationContext::run_display: no eventloop")
+            log::error!(
+                "aftgraphs::simulation::SimulationContext::run_display: {}",
+                SRE::DisplayWithoutEventLoop
+            );
+            SRE::DisplayWithoutEventLoop
         })?;
         event_loop
             .run(move |event, win_target| {
@@ -464,8 +500,9 @@ impl<T: Simulation> SimulationContext<T, UiWinitPlatform> {
                     }
                 }
             }).map_err(|e| {
-                log::error!("aftgraphs::simulation::SimulationContext::run_display: winit::event_loop::EventLoop::run_display unexpectedly failed: {e}");
-                anyhow::anyhow!("aftgraphs::simulation::SimulationContext::run_display: winit::event_loop::EventLoop::run_display unexpectedly failed: {e}")
+                let e = SRE::DisplayEventLoopFailure(format!("{e:?}"));
+                log::error!("aftgraphs::simulation::SimulationContext::run_display: {e}");
+                e
             })
     }
 }

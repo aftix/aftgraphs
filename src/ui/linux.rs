@@ -1,9 +1,16 @@
 use copypasta::{ClipboardContext, ClipboardProvider};
 use imgui::{ClipboardBackend, Context, FontConfig, FontSource};
-use imgui_wgpu::{Renderer as ImguiRenderer, RendererConfig};
+use imgui_wgpu::{Renderer as ImguiRenderer, RendererConfig, RendererError};
 use imgui_winit_support::{HiDpiMode, WinitPlatform};
+use thiserror::Error;
 use wgpu::{Device, Queue, TextureFormat};
 use winit::{event::Event, window::Window};
+
+#[derive(Error, Clone, Debug)]
+pub enum UiDrawError {
+    #[error("imgpui-wgpu renderer failed: {0}")]
+    RendererError(#[from] RendererError),
+}
 
 pub trait UiPlatform {
     fn prepare_frame(&mut self, ui: &mut Ui, window: &Window);
@@ -74,8 +81,9 @@ impl Ui {
         render_pass: &mut wgpu::RenderPass<'a>,
         queue: &wgpu::Queue,
         device: &wgpu::Device,
-    ) -> Result<(), imgui_wgpu::RendererError> {
-        self.1.render(self.0.render(), queue, device, render_pass)
+    ) -> Result<(), UiDrawError> {
+        self.1.render(self.0.render(), queue, device, render_pass)?;
+        Ok(())
     }
 
     pub fn new(

@@ -1,3 +1,5 @@
+use thiserror::Error;
+
 pub mod display;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod headless;
@@ -8,6 +10,16 @@ pub mod simulation;
 pub mod ui;
 pub mod uniform;
 pub mod vertex;
+
+#[derive(Clone, Debug, Error)]
+pub enum GraphicsInitError {
+    #[error("failed to find adapter for WGPU instance")]
+    NoAdapter,
+    #[error("WGPU failed to request device: {0}")]
+    NoDevice(#[from] wgpu::RequestDeviceError),
+    #[error("WGPU failed to create surface: {0}")]
+    NoSurface(#[from] wgpu::CreateSurfaceError),
+}
 
 #[cfg(not(target_arch = "wasm32"))]
 mod cli;
