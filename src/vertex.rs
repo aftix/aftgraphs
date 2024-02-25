@@ -4,9 +4,10 @@ use bytemuck::NoUninit;
 use std::ops::Range;
 use std::ops::{Deref, DerefMut, RangeBounds};
 use wgpu::util::DeviceExt;
+use wgpu::RenderPass;
 
 pub mod builder;
-pub use builder::VertexBufferBuilder;
+pub use builder::{InstanceBufferBuilder, VertexBufferBuilder};
 
 pub static PRIMITIVE_POINTS: wgpu::PrimitiveState = wgpu::PrimitiveState {
     topology: wgpu::PrimitiveTopology::PointList,
@@ -18,6 +19,7 @@ pub static PRIMITIVE_POINTS: wgpu::PrimitiveState = wgpu::PrimitiveState {
     conservative: false,
 };
 
+/// For instancing, use InstanceBuffer
 pub struct VertexBuffer<T: NoUninit> {
     buffer: wgpu::Buffer,
     array_stride: wgpu::BufferAddress,
@@ -40,6 +42,26 @@ pub struct IndexBuffer<T: num_traits::PrimInt + NoUninit> {
 
 pub struct IndexBufferGuard<'a, T: num_traits::PrimInt + NoUninit, P: UiPlatform> {
     index_buffer: &'a mut IndexBuffer<T>,
+    renderer: &'a Renderer<P>,
+    changed: bool,
+}
+
+/// Handles the instance and vertex buffers together
+pub struct InstanceBuffer<V: NoUninit, I: NoUninit> {
+    vertex_buffer: wgpu::Buffer,
+    instance_buffer: wgpu::Buffer,
+    vertex_array_stride: wgpu::BufferAddress,
+    instance_array_stride: wgpu::BufferAddress,
+    vertex_step_mode: wgpu::VertexStepMode,
+    instance_step_mode: wgpu::VertexStepMode,
+    vertex_attributes: Vec<wgpu::VertexAttribute>,
+    instance_attributes: Vec<wgpu::VertexAttribute>,
+    vertices: Vec<V>,
+    instances: Vec<I>,
+}
+
+pub struct InstanceBufferGuard<'a, V: NoUninit, I: NoUninit, P: UiPlatform> {
+    instance_buffer: &'a mut InstanceBuffer<V, I>,
     renderer: &'a Renderer<P>,
     changed: bool,
 }
@@ -108,6 +130,10 @@ impl<T: num_traits::PrimInt + NoUninit> IndexBuffer<T> {
     pub fn range(&self) -> Range<u32> {
         0..self.indices.len() as u32
     }
+
+    pub fn bind<'a, 'b: 'a>(&'b self, render_pass: &mut RenderPass<'a>) {
+        render_pass.set_index_buffer(self.as_index_buffer(), self.format);
+    }
 }
 
 impl<T: NoUninit + num_traits::PrimInt> AsRef<[T]> for IndexBuffer<T> {
@@ -157,7 +183,7 @@ impl<'a, T: NoUninit + num_traits::PrimInt, P: UiPlatform> Drop for IndexBufferG
                 &self.index_buffer.buffer,
                 0,
                 bytemuck::cast_slice(&self.index_buffer.indices),
-            )
+            );
         }
     }
 }
@@ -201,6 +227,10 @@ impl<T: NoUninit> VertexBuffer<T> {
 
     pub fn range(&self) -> Range<u32> {
         0..self.vertices.len() as u32
+    }
+
+    pub fn bind<'a, 'b: 'a>(&'b self, render_pass: &mut RenderPass<'a>, slot: u32) {
+        render_pass.set_vertex_buffer(slot, self.as_vertex_buffer());
     }
 }
 
@@ -247,7 +277,98 @@ impl<'a, T: NoUninit, P: UiPlatform> Drop for VertexBufferGuard<'a, T, P> {
                 &self.vertex_buffer.buffer,
                 0,
                 bytemuck::cast_slice(&self.vertex_buffer.vertices),
-            )
+            );
+        }
+    }
+}
+
+impl<V: NoUninit, I: NoUninit> InstanceBuffer<V, I> {
+    /// Create a guard to modify the InstanceBuffer
+    /// When the guard drops, it wil buffer the data to the GPU
+    pub fn modify<'a, P: UiPlatform>(
+        &'a mut self,
+        renderer: &'a Renderer<P>,
+    ) -> InstanceBufferGuard<'a, V, I, P> {
+        InstanceBufferGuard {
+            instance_buffer: self,
+            renderer,
+            changed: false,
+        }
+    }
+
+    pub fn vertex_layout(&self) -> wgpu::VertexBufferLayout<'_> {
+        wgpu::VertexBufferLayout {
+            array_stride: self.vertex_array_stride,
+            step_mode: self.vertex_step_mode,
+            attributes: self.vertex_attributes.as_slice(),
+        }
+    }
+
+    pub fn as_vertex_slice(&self) -> &[V] {
+        self.vertices.as_slice()
+    }
+
+    pub fn as_vertex_buffer(&self) -> wgpu::BufferSlice<'_> {
+        self.vertex_buffer.slice(..)
+    }
+
+    pub fn slice_vertex_buffer<S: RangeBounds<wgpu::BufferAddress>>(
+        &self,
+        bounds: S,
+    ) -> wgpu::BufferSlice<'_> {
+        self.vertex_buffer.slice(bounds)
+    }
+
+    pub fn range_vertex(&self) -> Range<u32> {
+        0..self.vertices.len() as u32
+    }
+
+    pub fn instance_layout(&self) -> wgpu::VertexBufferLayout<'_> {
+        wgpu::VertexBufferLayout {
+            array_stride: self.instance_array_stride,
+            step_mode: self.instance_step_mode,
+            attributes: self.instance_attributes.as_slice(),
+        }
+    }
+
+    pub fn as_instance_slice(&self) -> &[I] {
+        self.instances.as_slice()
+    }
+
+    pub fn as_instance_buffer(&self) -> wgpu::BufferSlice<'_> {
+        self.instance_buffer.slice(..)
+    }
+
+    pub fn slice_instance_buffer<S: RangeBounds<wgpu::BufferAddress>>(
+        &self,
+        bounds: S,
+    ) -> wgpu::BufferSlice<'_> {
+        self.instance_buffer.slice(bounds)
+    }
+
+    pub fn range_instance(&self) -> Range<u32> {
+        0..self.instances.len() as u32
+    }
+
+    pub fn bind<'a, 'b: 'a>(&'b self, render_pass: &mut RenderPass<'a>, v_slot: u32, i_slot: u32) {
+        render_pass.set_vertex_buffer(v_slot, self.as_vertex_buffer());
+        render_pass.set_vertex_buffer(i_slot, self.as_instance_buffer());
+    }
+}
+
+impl<'a, V: NoUninit, I: NoUninit, P: UiPlatform> Drop for InstanceBufferGuard<'a, V, I, P> {
+    fn drop(&mut self) {
+        if self.changed {
+            self.renderer.queue.write_buffer(
+                &self.instance_buffer.vertex_buffer,
+                0,
+                bytemuck::cast_slice(&self.instance_buffer.vertices),
+            );
+            self.renderer.queue.write_buffer(
+                &self.instance_buffer.instance_buffer,
+                0,
+                bytemuck::cast_slice(&self.instance_buffer.instances),
+            );
         }
     }
 }

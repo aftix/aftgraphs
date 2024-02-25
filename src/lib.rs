@@ -35,7 +35,10 @@ pub mod prelude {
     };
     pub use crate::ui::{Ui, UiFrame, UiPlatform};
     pub use crate::uniform::{Uniform, UniformBuilder};
-    pub use crate::vertex::{IndexBuffer, VertexBuffer, VertexBufferBuilder, PRIMITIVE_POINTS};
+    pub use crate::vertex::{
+        IndexBuffer, InstanceBuffer, InstanceBufferBuilder, VertexBuffer, VertexBufferBuilder,
+        PRIMITIVE_POINTS,
+    };
 
     pub use async_mutex::Mutex;
     pub use bytemuck;

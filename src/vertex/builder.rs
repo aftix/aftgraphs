@@ -1,4 +1,4 @@
-use super::VertexBuffer;
+use super::{InstanceBuffer, VertexBuffer};
 use crate::{render::Renderer, ui::UiPlatform};
 use bytemuck::NoUninit;
 use wgpu::util::DeviceExt;
@@ -130,6 +130,250 @@ impl<'a, T: NoUninit> VertexBufferBuilder<'a, T> {
         attributes: impl IntoIterator<Item = wgpu::VertexAttribute>,
     ) -> Self {
         self.attributes.extend(attributes);
+        self
+    }
+}
+
+/// Builder struct for a wgpu InstanceBuffer
+/// Creates the VertexBufferLayout's as well
+/// The default *_array_stride of the layout is the memory size
+/// of {V,I}. The default *_step_mode of the layout is wgpu::VertexStepMode::Vertex.
+pub struct InstanceBufferBuilder<'a, V: NoUninit, I: NoUninit> {
+    vertex_attributes: Vec<wgpu::VertexAttribute>,
+    instance_attributes: Vec<wgpu::VertexAttribute>,
+    vertex_array_stride: wgpu::BufferAddress,
+    instance_array_stride: wgpu::BufferAddress,
+    vertex_step_mode: wgpu::VertexStepMode,
+    instance_step_mode: wgpu::VertexStepMode,
+    v_label: Option<&'a str>,
+    i_label: Option<&'a str>,
+    v_data: Vec<V>,
+    i_data: Vec<I>,
+}
+
+impl<'a, V: NoUninit, I: NoUninit> Default for InstanceBufferBuilder<'a, V, I> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<'a, V: NoUninit, I: NoUninit> InstanceBufferBuilder<'a, V, I> {
+    pub fn new() -> Self {
+        Self {
+            vertex_attributes: vec![],
+            instance_attributes: vec![],
+            vertex_array_stride: std::mem::size_of::<V>() as wgpu::BufferAddress,
+            instance_array_stride: std::mem::size_of::<I>() as wgpu::BufferAddress,
+            vertex_step_mode: wgpu::VertexStepMode::Vertex,
+            instance_step_mode: wgpu::VertexStepMode::Instance,
+            v_label: None,
+            i_label: None,
+            v_data: vec![],
+            i_data: vec![],
+        }
+    }
+
+    /// Creates the InstanceBuffer
+    /// This includes calls to the GPU
+    pub fn build<P: UiPlatform>(self, renderer: &Renderer<P>) -> InstanceBuffer<V, I> {
+        let Self {
+            vertex_attributes,
+            instance_attributes,
+            vertex_array_stride,
+            instance_array_stride,
+            vertex_step_mode,
+            instance_step_mode,
+            v_label,
+            i_label,
+            v_data,
+            i_data,
+        } = self;
+
+        let vertex_buffer = renderer
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: v_label,
+                contents: bytemuck::cast_slice(v_data.as_slice()),
+                usage: wgpu::BufferUsages::VERTEX,
+            });
+        let instance_buffer =
+            renderer
+                .device
+                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: i_label,
+                    contents: bytemuck::cast_slice(i_data.as_slice()),
+                    usage: wgpu::BufferUsages::VERTEX,
+                });
+
+        InstanceBuffer {
+            vertex_buffer,
+            instance_buffer,
+            vertex_array_stride,
+            instance_array_stride,
+            vertex_step_mode,
+            instance_step_mode,
+            vertex_attributes,
+            instance_attributes,
+            vertices: v_data,
+            instances: i_data,
+        }
+    }
+
+    /// Sets the initial vertices of the buffer.
+    /// Will override any previously set vertices.
+    pub fn with_initial_vertices(mut self, initial_vertices: &[V]) -> Self {
+        self.v_data.clear();
+        self.v_data.extend_from_slice(initial_vertices);
+        self
+    }
+
+    /// Sets the initial instances of the buffer.
+    /// Will override any previously set instances.
+    pub fn with_initial_instances(mut self, initial_instances: &[I]) -> Self {
+        self.i_data.clear();
+        self.i_data.extend_from_slice(initial_instances);
+        self
+    }
+
+    /// Sets the initial vertices of the buffer.
+    /// Will override any previously set vertices.
+    pub fn with_initial_vertices_owned(mut self, initial_vertices: Vec<V>) -> Self {
+        self.v_data = initial_vertices;
+        self
+    }
+
+    /// Sets the initial instances of the buffer.
+    /// Will override any previously set instances.
+    pub fn with_initial_instances_owned(mut self, initial_instances: Vec<I>) -> Self {
+        self.i_data = initial_instances;
+        self
+    }
+
+    /// Extends the current initial vertices of the buffer with a slice
+    pub fn extend_initial_vertices_from_slice(mut self, extra_vertices: &[V]) -> Self {
+        self.v_data.extend_from_slice(extra_vertices);
+        self
+    }
+
+    /// Extends the current initial vertices of the buffer with a slice
+    pub fn extend_initial_instances_from_slice(mut self, extra_vertices: &[I]) -> Self {
+        self.i_data.extend_from_slice(extra_vertices);
+        self
+    }
+
+    /// Extends current initial vertices of the buffer with an iterator
+    pub fn extend_initial_vertices(mut self, extra_vertices: impl IntoIterator<Item = V>) -> Self {
+        self.v_data.extend(extra_vertices);
+        self
+    }
+
+    /// Extends current initial vertices of the buffer with an iterator
+    pub fn extend_initial_instances(
+        mut self,
+        extra_instances: impl IntoIterator<Item = I>,
+    ) -> Self {
+        self.i_data.extend(extra_instances);
+        self
+    }
+
+    /// Sets the array_stride of the vertices' VertexBufferLayout, overriding any previous value
+    pub fn with_vertex_array_stride(mut self, stride: wgpu::BufferAddress) -> Self {
+        self.vertex_array_stride = stride;
+        self
+    }
+
+    /// Sets the array_stride of the instances' VertexBufferLayout, overriding any previous value
+    pub fn with_instance_array_stride(mut self, stride: wgpu::BufferAddress) -> Self {
+        self.instance_array_stride = stride;
+        self
+    }
+
+    /// Sets the step_mode of the vertices' VertexBufferLayout, overriding any previous value
+    pub fn with_vertex_step_mode(mut self, step_mode: wgpu::VertexStepMode) -> Self {
+        self.vertex_step_mode = step_mode;
+        self
+    }
+
+    /// Sets the step_mode of the instances' VertexBufferLayout, overriding any previous value
+    pub fn with_instance_step_mode(mut self, step_mode: wgpu::VertexStepMode) -> Self {
+        self.instance_step_mode = step_mode;
+        self
+    }
+
+    /// Sets the label of the vertices' VertexBufferLayout and the VertexBuffer, overriding any previous value
+    pub fn with_vertex_label(mut self, label: Option<&'a str>) -> Self {
+        self.v_label = label;
+        self
+    }
+
+    /// Sets the label of the instances' VertexBufferLayout and the VertexBuffer, overriding any previous value
+    pub fn with_instance_label(mut self, label: Option<&'a str>) -> Self {
+        self.i_label = label;
+        self
+    }
+
+    /// Sets the VertexAttribute's of the vertices' layout to the slice, overriding any previous attributes
+    pub fn with_vertex_attributes(mut self, attributes: &[wgpu::VertexAttribute]) -> Self {
+        self.vertex_attributes.clear();
+        self.vertex_attributes.extend_from_slice(attributes);
+        self
+    }
+
+    /// Sets the VertexAttribute's of the layout to the slice, overriding any previous attributes
+    pub fn with_instance_attributes(mut self, attributes: &[wgpu::VertexAttribute]) -> Self {
+        self.instance_attributes.clear();
+        self.instance_attributes.extend_from_slice(attributes);
+        self
+    }
+
+    /// Sets the vertices' VertexAttribute's of the layout, overriding any previous attributes
+    pub fn with_vertex_attributes_owned(mut self, attributes: Vec<wgpu::VertexAttribute>) -> Self {
+        self.vertex_attributes = attributes;
+        self
+    }
+
+    /// Sets the instances' VertexAttribute's of the layout, overriding any previous attributes
+    pub fn with_instance_attributes_owned(
+        mut self,
+        attributes: Vec<wgpu::VertexAttribute>,
+    ) -> Self {
+        self.instance_attributes = attributes;
+        self
+    }
+
+    /// Extends the current vertices' vertex attributes with a slice
+    pub fn extend_vertex_attributes_from_slice(
+        mut self,
+        attributes: &[wgpu::VertexAttribute],
+    ) -> Self {
+        self.vertex_attributes.extend_from_slice(attributes);
+        self
+    }
+
+    /// Extends the current instances' vertex attributes with a slice
+    pub fn extend_instance_attributes_from_slice(
+        mut self,
+        attributes: &[wgpu::VertexAttribute],
+    ) -> Self {
+        self.instance_attributes.extend_from_slice(attributes);
+        self
+    }
+
+    /// Extends the current vertices' vertex attributes with an iterator
+    pub fn extend_vertex_attributes(
+        mut self,
+        attributes: impl IntoIterator<Item = wgpu::VertexAttribute>,
+    ) -> Self {
+        self.vertex_attributes.extend(attributes);
+        self
+    }
+
+    /// Extends the current instances' vertex attributes with an iterator
+    pub fn extend_instance_attributes(
+        mut self,
+        attributes: impl IntoIterator<Item = wgpu::VertexAttribute>,
+    ) -> Self {
+        self.instance_attributes.extend(attributes);
         self
     }
 }

@@ -2,6 +2,7 @@ use crate::render::Renderer;
 use crate::ui::UiPlatform;
 use bytemuck::NoUninit;
 use std::ops::{Deref, DerefMut};
+use wgpu::RenderPass;
 
 mod builder;
 pub use builder::UniformBuilder;
@@ -58,6 +59,10 @@ impl<T: NoUninit + PartialEq> Uniform<T> {
         renderer
             .queue
             .write_buffer(&self.buffer, 0, bytemuck::bytes_of(&self.data));
+    }
+
+    pub fn bind<'a, 'b: 'a>(&'b mut self, render_pass: &mut RenderPass<'a>, slot: u32) {
+        render_pass.set_bind_group(slot, self.bind_group(), &[]);
     }
 }
 
