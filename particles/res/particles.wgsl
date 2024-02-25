@@ -1,7 +1,11 @@
 struct VertexInput {
-    @location(0) position: vec2<f32>,
-    @location(1) color: vec3<f32>,
-    @location(2) quad_pos: vec2<f32>, // (-1, 1)
+    @align(16) @location(0) quad_pos: vec2<f32>, // (-1, 1)
+}
+
+struct InstanceInput {
+    @location(1) position: vec2<f32>,
+    @location(2) radius: f32,
+    @location(3) color: vec3<f32>,
 }
 
 struct VertexOutput {
@@ -10,12 +14,19 @@ struct VertexOutput {
     @location(1) quad_pos: vec2<f32>, // (-1, 1)
 }
 
+struct Float {
+    @align(16) f: f32,
+}
+
+@group(0) @binding(0) var<uniform> aspect_ratio: Float;
+
 @vertex
-fn vs_main(model: VertexInput) -> VertexOutput {
+fn vs_main(vertex: VertexInput, instance: InstanceInput) -> VertexOutput {
     var out: VertexOutput;
-    out.color = model.color;
-    out.clip_position = vec4<f32>(model.position, 1.0, 1.0);
-    out.quad_pos = model.quad_pos;
+    out.color = instance.color;
+    let quad_pos = vec2<f32>(vertex.quad_pos.x * instance.radius, vertex.quad_pos.y * instance.radius * aspect_ratio.f);
+    out.clip_position = vec4<f32>(quad_pos + instance.position, 1.0, 1.0);
+    out.quad_pos = vertex.quad_pos;
     return out;
 }
 
