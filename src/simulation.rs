@@ -10,7 +10,7 @@ use thiserror::Error;
 pub use winit::event::{ElementState, MouseButton, RawKeyEvent};
 use winit::{
     dpi::{PhysicalPosition, PhysicalSize},
-    event::{Event, KeyEvent, WindowEvent},
+    event::{Event, KeyEvent, Touch, TouchPhase, WindowEvent},
     event_loop::EventLoop,
     keyboard::{Key, NamedKey},
     window::Window,
@@ -413,6 +413,39 @@ impl<T: Simulation> SimulationContext<T, UiWinitPlatform> {
                         block_on(async move {
                             let mut simulation = simulation.lock().await;
                             simulation.on_input(InputEvent::Mouse(state, button, position)).await;
+
+                            let window = window.lock().await;
+                            if let Some(window) = window.as_ref() {
+                                let mut renderer = renderer.lock().await;
+                                renderer.handle_event(window, &winit_event)
+                            }
+                        });
+                    }
+                    winit_event @ Event::WindowEvent {
+                        event: WindowEvent::Touch(_), ..
+                    } => {
+                        log::debug!("aftgraphs::simulation::SimulationContext::run_display: Touch event found on window");
+
+                        let (phase, location) = match &winit_event {
+                            Event::WindowEvent { event: WindowEvent::Touch(Touch { phase, location, .. }), .. } => (*phase, *location),
+                            _ => unreachable!(),
+                        };
+
+                        let state = match phase {
+                            TouchPhase::Started => ElementState::Pressed,
+                            TouchPhase::Moved => return,
+                            TouchPhase::Ended | TouchPhase::Cancelled => ElementState::Released,
+                        };
+                        let position = (location.x / window_size.width, location.y / window_size.height);
+                        let position = (position.0 * 2.0 - 1.0, 1.0 - position.1 * 2.0);
+
+                        let simulation = simulation.clone();
+                        let window = self.window.clone();
+                        let renderer = self.renderer.clone();
+
+                        block_on(async move {
+                            let mut simulation = simulation.lock().await;
+                            simulation.on_input(InputEvent::Mouse(state, MouseButton::Left, position)).await;
 
                             let window = window.lock().await;
                             if let Some(window) = window.as_ref() {
