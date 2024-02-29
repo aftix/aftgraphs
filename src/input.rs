@@ -11,7 +11,7 @@ use thiserror::Error;
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 pub enum Input {
     // An input slider: name, [lower bound, upper bound]
-    SLIDER(f64, f64),
+    SLIDER(f64, f64, #[serde(default)] Option<f64>),
     #[default]
     CHECKBOX,
     #[serde(untagged)]
@@ -190,14 +190,14 @@ mod test {
         };
 
         let inner_block_map: HashMap<String, Input> = [
-            ("inner_slider".to_owned(), Input::SLIDER(1.0, 2.0)),
+            ("inner_slider".to_owned(), Input::SLIDER(1.0, 2.0, None)),
             ("inner_checkbox".to_owned(), Input::CHECKBOX),
         ]
         .into_iter()
         .collect();
 
         let block_map: HashMap<String, Input> = [
-            ("slider".to_owned(), Input::SLIDER(0.0, 1.0)),
+            ("slider".to_owned(), Input::SLIDER(0.0, 1.0, None)),
             ("checkbox".to_owned(), Input::CHECKBOX),
             ("group".to_owned(), Input::GROUP(inner_block_map)),
         ]
@@ -242,14 +242,14 @@ mod test {
         };
 
         let inner_block_map: HashMap<String, Input> = [
-            ("inner_slider".to_owned(), Input::SLIDER(1.0, 2.0)),
+            ("inner_slider".to_owned(), Input::SLIDER(1.0, 2.0, None)),
             ("inner_checkbox".to_owned(), Input::CHECKBOX),
         ]
         .into_iter()
         .collect();
 
         let block_map: HashMap<String, Input> = [
-            ("slider".to_owned(), Input::SLIDER(0.0, 1.0)),
+            ("slider".to_owned(), Input::SLIDER(0.0, 1.0, None)),
             ("checkbox".to_owned(), Input::CHECKBOX),
             ("group".to_owned(), Input::GROUP(inner_block_map)),
         ]

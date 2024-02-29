@@ -5,9 +5,11 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-
 aftgraphs = { path = "../" }
 aftgraphs-macros = { path = "../aftgraphs-macros" }
+bacon-sci = "0.16.0"
+rand = "0.8"
+web-time = "1.0.0"
 wgpu = { version = "0.18", features = ["webgl", "spirv"] }
 winit = { version = "0.29.3", features = ["rwh_05", "wayland", "x11"] }
 
