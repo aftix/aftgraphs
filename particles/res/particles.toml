@@ -4,5 +4,5 @@ description = "Particle bounce test"
 
 [[block]]
 _name = "controls"
-count = { SLIDER = [1.0, 20.0] }
+count = { SLIDER = [1.0, 20.0, 1.0] }
 collision = "CHECKBOX"

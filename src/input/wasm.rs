@@ -39,7 +39,7 @@ impl Inputs {
 
                 div
             }
-            Input::SLIDER(lower, upper) => {
+            Input::SLIDER(lower, upper, step) => {
                 let label_elem = ui.document.create_element("label").unwrap();
                 let label_elem: HtmlLabelElement = label_elem.dyn_into().unwrap();
                 label_elem.set_html_for(sanitized_name.as_str());
@@ -55,8 +55,12 @@ impl Inputs {
                 input_elem
                     .set_attribute("max", &ToString::to_string(&upper))
                     .unwrap();
-                input_elem.set_attribute("step", "any").unwrap();
                 input_elem.set_value_as_number(*lower);
+                if let Some(step) = step {
+                    input_elem.set_attribute("step", &step.to_string()).unwrap();
+                } else {
+                    input_elem.set_attribute("step", "any").unwrap();
+                }
 
                 let div = ui.document.create_element("div").unwrap();
                 div.set_class_name("inputset");
@@ -198,7 +202,7 @@ impl Inputs {
                     }
                 }
             }
-            Input::SLIDER(_, _) => {
+            Input::SLIDER(_, _, _) => {
                 let range =
                     if let Some(range) = ui.document.get_element_by_id(sanitized_name.as_str()) {
                         range

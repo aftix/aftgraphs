@@ -41,5 +41,5 @@ for file in "$targetDir/"*.wasm; do
     wasm-bindgen --no-typescript --debug --keep-debug --target web --out-dir "./target/web/$file" "./$targetDir/$file.wasm"
   fi
   cp index.html "./target/web/$file/." 
-  gsed -i "s/{{}}/$file/g" "./target/web/$file/index.html"
+  sed -i "s/{{}}/$file/g" "./target/web/$file/index.html"
 done

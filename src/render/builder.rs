@@ -107,7 +107,19 @@ impl<'a> ShaderBuilder<'a, BuilderComplete> {
         if fs_entry.is_some() && targets.is_empty() {
             if let Some(ref surface) = renderer.surface {
                 let capabilities = surface.get_capabilities(&renderer.adapter);
-                targets.push(Some(capabilities.formats[0].into()));
+                let target = wgpu::ColorTargetState {
+                    format: capabilities.formats[0],
+                    blend: Some(wgpu::BlendState {
+                        color: wgpu::BlendComponent {
+                            src_factor: wgpu::BlendFactor::SrcAlpha,
+                            dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
+                            operation: wgpu::BlendOperation::Add,
+                        },
+                        alpha: wgpu::BlendComponent::OVER,
+                    }),
+                    write_mask: wgpu::ColorWrites::ALL,
+                };
+                targets.push(Some(target));
             } else {
                 targets.push(Some(wgpu::ColorTargetState {
                     format: wgpu::TextureFormat::Rgba8UnormSrgb,

@@ -29,18 +29,24 @@ impl Inputs {
                     }
                 }
             }
-            &Input::SLIDER(lower, upper) => {
+            &Input::SLIDER(lower, upper, step) => {
                 let entry = map
                     .entry(input_name)
                     .or_insert_with(|| InputValue::SLIDER(lower));
                 match entry {
                     &mut InputValue::SLIDER(ref mut value) => {
                         ui.slider(name, lower, upper, value);
+                        if let Some(step) = step {
+                            *value = (*value / step).round() * step;
+                        }
                     }
                     _ => {
                         *entry = InputValue::SLIDER(lower);
                         if let &mut InputValue::SLIDER(ref mut value) = entry {
                             ui.slider(name, lower, upper, value);
+                            if let Some(step) = step {
+                                *value = (*value / step).round() * step;
+                            }
                         } else {
                             unreachable!()
                         }

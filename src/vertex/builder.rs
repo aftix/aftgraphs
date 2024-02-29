@@ -48,7 +48,7 @@ impl<'a, T: NoUninit> VertexBufferBuilder<'a, T> {
             .create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label,
                 contents: bytemuck::cast_slice(data.as_slice()),
-                usage: wgpu::BufferUsages::VERTEX,
+                usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
             });
 
         VertexBuffer {
@@ -57,6 +57,7 @@ impl<'a, T: NoUninit> VertexBufferBuilder<'a, T> {
             step_mode,
             attributes,
             vertices: data,
+            label: label.map(String::from),
         }
     }
 
@@ -194,7 +195,7 @@ impl<'a, V: NoUninit, I: NoUninit> InstanceBufferBuilder<'a, V, I> {
             .create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: v_label,
                 contents: bytemuck::cast_slice(v_data.as_slice()),
-                usage: wgpu::BufferUsages::VERTEX,
+                usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
             });
         let instance_buffer =
             renderer
@@ -202,7 +203,7 @@ impl<'a, V: NoUninit, I: NoUninit> InstanceBufferBuilder<'a, V, I> {
                 .create_buffer_init(&wgpu::util::BufferInitDescriptor {
                     label: i_label,
                     contents: bytemuck::cast_slice(i_data.as_slice()),
-                    usage: wgpu::BufferUsages::VERTEX,
+                    usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
                 });
 
         InstanceBuffer {
@@ -216,6 +217,8 @@ impl<'a, V: NoUninit, I: NoUninit> InstanceBufferBuilder<'a, V, I> {
             instance_attributes,
             vertices: v_data,
             instances: i_data,
+            instance_label: i_label.map(String::from),
+            vertex_label: v_label.map(String::from),
         }
     }
 

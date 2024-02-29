@@ -3,6 +3,7 @@ use crate::ui::UiPlatform;
 use bytemuck::NoUninit;
 use std::ops::Range;
 use std::ops::{Deref, DerefMut, RangeBounds};
+use std::vec::Drain;
 use wgpu::util::DeviceExt;
 use wgpu::RenderPass;
 
@@ -26,24 +27,28 @@ pub struct VertexBuffer<T: NoUninit> {
     step_mode: wgpu::VertexStepMode,
     attributes: Vec<wgpu::VertexAttribute>,
     vertices: Vec<T>,
+    label: Option<String>,
 }
 
 pub struct VertexBufferGuard<'a, T: NoUninit, P: UiPlatform> {
     vertex_buffer: &'a mut VertexBuffer<T>,
     renderer: &'a Renderer<P>,
     changed: bool,
+    old_length: usize,
 }
 
 pub struct IndexBuffer<T: num_traits::PrimInt + NoUninit> {
     buffer: wgpu::Buffer,
     indices: Vec<T>,
     format: wgpu::IndexFormat,
+    label: Option<String>,
 }
 
 pub struct IndexBufferGuard<'a, T: num_traits::PrimInt + NoUninit, P: UiPlatform> {
     index_buffer: &'a mut IndexBuffer<T>,
     renderer: &'a Renderer<P>,
     changed: bool,
+    old_length: usize,
 }
 
 /// Handles the instance and vertex buffers together
@@ -58,12 +63,16 @@ pub struct InstanceBuffer<V: NoUninit, I: NoUninit> {
     instance_attributes: Vec<wgpu::VertexAttribute>,
     vertices: Vec<V>,
     instances: Vec<I>,
+    instance_label: Option<String>,
+    vertex_label: Option<String>,
 }
 
 pub struct InstanceBufferGuard<'a, V: NoUninit, I: NoUninit, P: UiPlatform> {
     instance_buffer: &'a mut InstanceBuffer<V, I>,
     renderer: &'a Renderer<P>,
     changed: bool,
+    old_length: usize,
+    old_vertices_length: usize,
 }
 
 impl<T: num_traits::PrimInt + NoUninit> IndexBuffer<T> {
@@ -87,13 +96,14 @@ impl<T: num_traits::PrimInt + NoUninit> IndexBuffer<T> {
             .create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label,
                 contents: bytemuck::cast_slice(indices.as_slice()),
-                usage: wgpu::BufferUsages::INDEX,
+                usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST,
             });
 
         Self {
             buffer,
             indices,
             format,
+            label: label.map(String::from),
         }
     }
 
@@ -101,10 +111,13 @@ impl<T: num_traits::PrimInt + NoUninit> IndexBuffer<T> {
         &'a mut self,
         renderer: &'a Renderer<P>,
     ) -> IndexBufferGuard<'a, T, P> {
+        let old_length = self.indices.len();
+
         IndexBufferGuard {
             index_buffer: self,
             renderer,
             changed: false,
+            old_length,
         }
     }
 
@@ -179,11 +192,22 @@ impl<'a, T: NoUninit + num_traits::PrimInt, P: UiPlatform> DerefMut for IndexBuf
 impl<'a, T: NoUninit + num_traits::PrimInt, P: UiPlatform> Drop for IndexBufferGuard<'a, T, P> {
     fn drop(&mut self) {
         if self.changed {
-            self.renderer.queue.write_buffer(
-                &self.index_buffer.buffer,
-                0,
-                bytemuck::cast_slice(&self.index_buffer.indices),
-            );
+            if self.old_length != self.len() {
+                self.index_buffer.buffer =
+                    self.renderer
+                        .device
+                        .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                            label: self.index_buffer.label.as_deref(),
+                            contents: bytemuck::cast_slice(self.as_slice()),
+                            usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST,
+                        });
+            } else {
+                self.renderer.queue.write_buffer(
+                    &self.index_buffer.buffer,
+                    0,
+                    bytemuck::cast_slice(&self.index_buffer.indices),
+                );
+            }
         }
     }
 }
@@ -195,10 +219,13 @@ impl<T: NoUninit> VertexBuffer<T> {
         &'a mut self,
         renderer: &'a Renderer<P>,
     ) -> VertexBufferGuard<'a, T, P> {
+        let old_length = self.vertices.len();
+
         VertexBufferGuard {
             vertex_buffer: self,
             renderer,
             changed: false,
+            old_length,
         }
     }
 
@@ -273,11 +300,22 @@ impl<'a, T: NoUninit, P: UiPlatform> DerefMut for VertexBufferGuard<'a, T, P> {
 impl<'a, T: NoUninit, P: UiPlatform> Drop for VertexBufferGuard<'a, T, P> {
     fn drop(&mut self) {
         if self.changed {
-            self.renderer.queue.write_buffer(
-                &self.vertex_buffer.buffer,
-                0,
-                bytemuck::cast_slice(&self.vertex_buffer.vertices),
-            );
+            if self.old_length != self.len() {
+                self.vertex_buffer.buffer =
+                    self.renderer
+                        .device
+                        .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                            label: self.vertex_buffer.label.as_deref(),
+                            contents: bytemuck::cast_slice(self.as_slice()),
+                            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+                        });
+            } else {
+                self.renderer.queue.write_buffer(
+                    &self.vertex_buffer.buffer,
+                    0,
+                    bytemuck::cast_slice(&self.vertex_buffer.vertices),
+                );
+            }
         }
     }
 }
@@ -289,10 +327,15 @@ impl<V: NoUninit, I: NoUninit> InstanceBuffer<V, I> {
         &'a mut self,
         renderer: &'a Renderer<P>,
     ) -> InstanceBufferGuard<'a, V, I, P> {
+        let old_length = self.instances.len();
+        let old_vertices_length = self.vertices.len();
+
         InstanceBufferGuard {
             instance_buffer: self,
             renderer,
             changed: false,
+            old_length,
+            old_vertices_length,
         }
     }
 
@@ -356,19 +399,92 @@ impl<V: NoUninit, I: NoUninit> InstanceBuffer<V, I> {
     }
 }
 
+impl<'a, V: NoUninit, I: NoUninit, P: UiPlatform> Deref for InstanceBufferGuard<'a, V, I, P> {
+    type Target = InstanceBuffer<V, I>;
+
+    fn deref(&self) -> &Self::Target {
+        self.instance_buffer
+    }
+}
+
+impl<'a, V: NoUninit, I: NoUninit, P: UiPlatform> InstanceBufferGuard<'a, V, I, P> {
+    pub fn vertices_mut(&mut self) -> &mut [V] {
+        self.changed = true;
+        self.instance_buffer.vertices.as_mut_slice()
+    }
+
+    pub fn instances_mut(&mut self) -> &mut [I] {
+        self.changed = true;
+        self.instance_buffer.instances.as_mut_slice()
+    }
+
+    pub fn vertices_push(&mut self, vertex: V) {
+        self.changed = true;
+        self.instance_buffer.vertices.push(vertex);
+    }
+
+    pub fn instances_push(&mut self, instance: I) {
+        self.changed = true;
+        self.instance_buffer.instances.push(instance);
+    }
+
+    pub fn vertices_drain<R: RangeBounds<usize>>(&mut self, range: R) -> Drain<'_, V> {
+        self.changed = true;
+        self.instance_buffer.vertices.drain(range)
+    }
+
+    pub fn instances_drain<R: RangeBounds<usize>>(&mut self, range: R) -> Drain<'_, I> {
+        self.changed = true;
+        self.instance_buffer.instances.drain(range)
+    }
+
+    pub fn vertices_vec(&mut self) -> &mut Vec<V> {
+        self.changed = true;
+        &mut self.instance_buffer.vertices
+    }
+
+    pub fn instances_vec(&mut self) -> &mut Vec<I> {
+        self.changed = true;
+        &mut self.instance_buffer.instances
+    }
+}
+
 impl<'a, V: NoUninit, I: NoUninit, P: UiPlatform> Drop for InstanceBufferGuard<'a, V, I, P> {
     fn drop(&mut self) {
         if self.changed {
-            self.renderer.queue.write_buffer(
-                &self.instance_buffer.vertex_buffer,
-                0,
-                bytemuck::cast_slice(&self.instance_buffer.vertices),
-            );
-            self.renderer.queue.write_buffer(
-                &self.instance_buffer.instance_buffer,
-                0,
-                bytemuck::cast_slice(&self.instance_buffer.instances),
-            );
+            if self.old_vertices_length != self.instance_buffer.vertices.len() {
+                self.instance_buffer.vertex_buffer =
+                    self.renderer
+                        .device
+                        .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                            label: self.vertex_label.as_deref(),
+                            contents: bytemuck::cast_slice(self.vertices.as_slice()),
+                            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+                        });
+            } else {
+                self.renderer.queue.write_buffer(
+                    &self.instance_buffer.vertex_buffer,
+                    0,
+                    bytemuck::cast_slice(&self.instance_buffer.vertices),
+                );
+            }
+
+            if self.old_length != self.instance_buffer.instances.len() {
+                self.instance_buffer.instance_buffer =
+                    self.renderer
+                        .device
+                        .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                            label: self.instance_label.as_deref(),
+                            contents: bytemuck::cast_slice(self.instances.as_slice()),
+                            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+                        });
+            } else {
+                self.renderer.queue.write_buffer(
+                    &self.instance_buffer.instance_buffer,
+                    0,
+                    bytemuck::cast_slice(&self.instance_buffer.instances),
+                );
+            }
         }
     }
 }
