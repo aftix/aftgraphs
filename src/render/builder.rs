@@ -123,7 +123,14 @@ impl<'a> ShaderBuilder<'a, BuilderComplete> {
             } else {
                 targets.push(Some(wgpu::ColorTargetState {
                     format: wgpu::TextureFormat::Rgba8UnormSrgb,
-                    blend: Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),
+                    blend: Some(wgpu::BlendState {
+                        color: wgpu::BlendComponent {
+                            src_factor: wgpu::BlendFactor::SrcAlpha,
+                            dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
+                            operation: wgpu::BlendOperation::Add,
+                        },
+                        alpha: wgpu::BlendComponent::OVER,
+                    }),
                     write_mask: wgpu::ColorWrites::ALL,
                 }))
             }

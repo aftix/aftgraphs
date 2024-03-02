@@ -8,5 +8,7 @@ impl<P: UiPlatform> Renderer<P> {
 
     pub async fn prepare_ui(&mut self, _window: &Window) {}
 
-    pub fn update_delta_time(&mut self, _duration: Duration) {}
+    pub fn update_delta_time(&mut self, duration: Duration) {
+        self.delta_time = duration.as_secs_f64();
+    }
 }

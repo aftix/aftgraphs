@@ -95,6 +95,8 @@ pub struct Renderer<P: UiPlatform> {
     pub platform: P,
     pub ui: Ui,
     pub aspect_ratio: f64,
+    pub time: f64,
+    pub delta_time: f64,
 }
 
 #[derive(Error, Clone, Debug)]

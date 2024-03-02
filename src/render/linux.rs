@@ -13,6 +13,7 @@ impl<P: UiPlatform> Renderer<P> {
     }
 
     pub fn update_delta_time(&mut self, duration: Duration) {
-        self.ui.context_mut().io_mut().update_delta_time(duration)
+        self.delta_time = duration.as_secs_f64();
+        self.ui.context_mut().io_mut().update_delta_time(duration);
     }
 }

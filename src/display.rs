@@ -81,5 +81,7 @@ pub async fn init(window: &Window) -> Result<Renderer<UiWinitPlatform>, Graphics
         platform,
         ui,
         aspect_ratio,
+        time: 0.0,
+        delta_time: 0.0,
     })
 }
