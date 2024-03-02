@@ -5,7 +5,6 @@ use rand::prelude::*;
 use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::num::NonZeroU64;
-use web_time::Instant;
 
 mod physics;
 
@@ -67,7 +66,6 @@ struct Particles {
     angle_distribution: rand::distributions::Uniform<f32>,
     rng: ThreadRng,
     physics: Physics,
-    first_frame: Instant,
 }
 impl Simulation for Particles {
     fn new<P: UiPlatform>(renderer: &Renderer<P>) -> Self {
@@ -182,7 +180,6 @@ impl Simulation for Particles {
             angle_distribution,
             rng,
             physics,
-            first_frame: Instant::now(),
         }
     }
 
@@ -194,12 +191,9 @@ impl Simulation for Particles {
         mut render_pass: RenderPass<'_>,
         inputs: &mut HashMap<String, InputValue>,
     ) {
-        let now = Instant::now();
-
         self.physics
             .update_aspect_ratio(renderer.aspect_ratio as f32);
-        self.physics
-            .simulate(now.duration_since(self.first_frame).as_secs_f32());
+        self.physics.simulate(renderer.time as f32);
 
         self.aspect_ratio
             .update(renderer, Float(renderer.aspect_ratio as f32));
@@ -233,9 +227,7 @@ impl Simulation for Particles {
 
         {
             let mut instances = self.instances.modify(renderer);
-            *instances.instances_vec() = self
-                .physics
-                .get_state(now.duration_since(self.first_frame).as_secs_f32());
+            *instances.instances_vec() = self.physics.get_state(renderer.time as f32);
         }
 
         render_pass.set_pipeline(&self.pipeline);

@@ -162,5 +162,7 @@ pub async fn init(mut size: (u32, u32)) -> Result<Renderer<()>, GraphicsInitErro
         platform,
         ui,
         aspect_ratio,
+        time: 0.0,
+        delta_time: 0.0,
     })
 }

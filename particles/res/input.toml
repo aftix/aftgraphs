@@ -1,0 +1,83 @@
+[simulation]
+duration = 40.0
+delta_t = 0.03
+
+[initial-inputs]
+controls-count = { SLIDER = 1.0 }
+controls-collision = { CHECKBOX = false }
+
+[[block]]
+time = 2.0
+controls-count = { SLIDER = 2.0 }
+
+[[block]]
+time = 3.0
+controls-count = { SLIDER = 3.0 }
+
+[[block]]
+time = 4.0
+controls-count = { SLIDER = 4.0 }
+
+[[block]]
+time = 5.0
+controls-count = { SLIDER = 5.0 }
+
+[[block]]
+time = 6.0
+controls-count = { SLIDER = 6.0 }
+
+[[block]]
+time = 7.0
+controls-count = { SLIDER = 7.0 }
+
+[[block]]
+time = 8.0
+controls-count = { SLIDER = 8.0 }
+
+[[block]]
+time = 9.0
+controls-count = { SLIDER = 9.0 }
+
+[[block]]
+time = 10.0
+controls-count = { SLIDER = 10.0 }
+
+[[block]]
+time = 11.0
+controls-count = { SLIDER = 11.0 }
+
+[[block]]
+time = 12.0
+controls-count = { SLIDER = 12.0 }
+
+[[block]]
+time = 13.0
+controls-count = { SLIDER = 13.0 }
+
+[[block]]
+time = 14.0
+controls-count = { SLIDER = 14.0 }
+
+[[block]]
+time = 15.0
+controls-count = { SLIDER = 15.0 }
+
+[[block]]
+time = 16.0
+controls-count = { SLIDER = 16.0 }
+
+[[block]]
+time = 17.0
+controls-count = { SLIDER = 17.0 }
+
+[[block]]
+time = 18.0
+controls-count = { SLIDER = 18.0 }
+
+[[block]]
+time = 19.0
+controls-count = { SLIDER = 19.0 }
+
+[[block]]
+time = 20.0
+controls-count = { SLIDER = 20.0 }

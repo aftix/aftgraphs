@@ -7,6 +7,7 @@ use crate::{
 use async_mutex::Mutex;
 use std::{collections::HashMap, rc::Rc, sync::Arc};
 use thiserror::Error;
+use web_time::Instant;
 pub use winit::event::{ElementState, MouseButton, RawKeyEvent};
 use winit::{
     dpi::{PhysicalPosition, PhysicalSize},
@@ -175,6 +176,7 @@ impl<T: Simulation> SimulationContext<T, ()> {
         let delta_duration = Duration::from_secs_f64(delta_t);
         while time <= duration {
             renderer.update_delta_time(delta_duration);
+            renderer.time = time;
 
             if let Some(ref event) = current_event {
                 if time > event.time {
@@ -243,6 +245,7 @@ impl<T: Simulation> SimulationContext<T, UiWinitPlatform> {
 
         log::debug!("aftgraphs::simulation::SimulationContext::run_display entered");
 
+        let start_time = Instant::now();
         let simulation = Arc::new(Mutex::new(self.simulation));
         let input_values = InputState::default();
         let mut last_frame = web_time::Instant::now();
@@ -465,7 +468,8 @@ impl<T: Simulation> SimulationContext<T, UiWinitPlatform> {
                         let renderer = self.renderer.clone();
                         block_on(async move {
                             let mut renderer = renderer.lock().await;
-                            renderer.update_delta_time(delta_time)
+                            renderer.update_delta_time(delta_time);
+                            renderer.time = now.duration_since(start_time).as_secs_f64();
                         });
                     }
                     Event::AboutToWait => {

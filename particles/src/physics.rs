@@ -1,9 +1,6 @@
 use crate::Instance;
 use bacon_sci::{
-    ivp::{
-        adams::{Adams5, AdamsSolver},
-        Derivative, IVPError, IVPIterator, IVPSolver, UserError,
-    },
+    ivp::{Derivative, Euler, EulerSolver, IVPError, IVPIterator, IVPSolver, UserError},
     prelude::*,
 };
 use std::cell::RefCell;
@@ -12,7 +9,7 @@ use std::rc::Rc;
 
 type Solver = IVPIterator<
     Dyn,
-    AdamsSolver<'static, f32, Dyn, 5, PhysicsData, Box<dyn Derivative<f32, Dyn, PhysicsData>>>,
+    EulerSolver<'static, f32, Dyn, PhysicsData, Box<dyn Derivative<f32, Dyn, PhysicsData>>>,
 >;
 
 pub struct Physics {
@@ -72,7 +69,7 @@ impl Physics {
             velocities: velocities.clone(),
         };
 
-        let solver = Adams5::new_dyn(0)?
+        let solver = Euler::new_dyn(0)?
             .with_tolerance(1e-4)?
             .with_minimum_dt(1e-4)?
             .with_maximum_dt(1.0 / 30.0)?
@@ -95,7 +92,7 @@ impl Physics {
     }
 
     pub fn len(&self) -> usize {
-        self.states.back().unwrap().1.len() / 4
+        self.states.back().unwrap().1.len() / 2
     }
 
     pub fn update_aspect_ratio(&mut self, aspect_ratio: f32) {
@@ -117,7 +114,7 @@ impl Physics {
             velocities: self.velocities.clone(),
         };
 
-        self.solver = Adams5::new_dyn(state.len())?
+        self.solver = Euler::new_dyn(state.len())?
             .with_tolerance(1e-4)?
             .with_minimum_dt(1e-4)?
             .with_maximum_dt(1.0 / 30.0)?
@@ -161,7 +158,7 @@ impl Physics {
             self.states[0].1.clone()
         };
 
-        let mut instances = Vec::with_capacity(state.len() / 4);
+        let mut instances = Vec::with_capacity(state.len() / 2);
 
         for particle in state.as_slice().chunks_exact(2) {
             instances.push(Instance {
