@@ -2,7 +2,7 @@ use crate::render::Renderer;
 use crate::ui::Ui;
 use crate::GraphicsInitError;
 use crate::{input::InputValue, simulation::InputEvent};
-use async_mutex::Mutex;
+use async_std::sync::Mutex;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 

@@ -4,11 +4,13 @@ use crate::input::Inputs;
 use crate::simulation::InputEvent;
 use crate::simulation::{Simulation, SimulationBuilder, SimulationContext};
 use crate::ui::UiWinitPlatform;
-use async_mutex::Mutex;
-use core::future::Future;
-use std::fs::File;
-use std::io::read_to_string;
-use std::sync::Arc;
+use async_std::sync::Mutex;
+use std::{
+    fs::File,
+    future::Future,
+    io::read_to_string,
+    sync::Arc,
+};
 use winit::{event_loop::EventLoopBuilder, window::Window};
 
 fn init_platform() {

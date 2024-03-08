@@ -4,7 +4,7 @@ use crate::{
     render::{RenderError, Renderer},
     ui::{UiPlatform, UiWinitPlatform},
 };
-use async_mutex::Mutex;
+use async_std::sync::Mutex;
 use std::{collections::HashMap, rc::Rc, sync::Arc};
 use thiserror::Error;
 use web_time::Instant;
@@ -248,7 +248,7 @@ impl<T: Simulation> SimulationContext<T, UiWinitPlatform> {
         let start_time = Instant::now();
         let simulation = Arc::new(Mutex::new(self.simulation));
         let input_values = InputState::default();
-        let mut last_frame = web_time::Instant::now();
+        let mut last_frame = Instant::now();
         let mut cursor_position = PhysicalPosition::new(0.0, 0.0);
 
         let mut window_size: PhysicalSize<f64> = {
@@ -461,7 +461,7 @@ impl<T: Simulation> SimulationContext<T, UiWinitPlatform> {
                         log::debug!(
                             "aftgraphs::simulation::SimulationContext::run_display: New events found on window"
                         );
-                        let now = web_time::Instant::now();
+                        let now = Instant::now();
                         let delta_time = now - last_frame;
                         last_frame = now;
 

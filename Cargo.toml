@@ -12,8 +12,7 @@ edition = "2021"
 default = ["x264"]
 
 [dependencies]
-async-mutex = "1.4"
-async-rwlock = "1.3"
+async-std = "1.12"
 bytemuck = { version = "1.14", features = ["derive"] }
 copypasta = "0.10"
 futures-intrusive = "0.5"

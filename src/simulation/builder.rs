@@ -4,7 +4,7 @@ use crate::{
     ui::{UiPlatform, UiWinitPlatform},
     GraphicsInitError,
 };
-use async_mutex::Mutex;
+use async_std::sync::Mutex;
 use std::{marker::PhantomData, rc::Rc, sync::Arc};
 use thiserror::Error;
 use winit::{event_loop::EventLoop, window::Window};

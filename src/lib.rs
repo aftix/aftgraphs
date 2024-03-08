@@ -40,7 +40,7 @@ pub mod prelude {
         PRIMITIVE_POINTS,
     };
 
-    pub use async_mutex::Mutex;
+    pub use async_std::sync::Mutex;
     pub use bytemuck;
     pub use std::sync::Arc;
     pub use wgpu::{
