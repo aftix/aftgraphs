@@ -39,6 +39,7 @@ pub mod prelude {
         IndexBuffer, InstanceBuffer, InstanceBufferBuilder, VertexBuffer, VertexBufferBuilder,
         PRIMITIVE_POINTS,
     };
+    pub use crate::{Handle, SpawnError};
 
     pub use async_std::sync::Mutex;
     pub use bytemuck;

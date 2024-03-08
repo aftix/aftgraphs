@@ -42,6 +42,8 @@ for file in "$targetDir/"*.wasm; do
   else
     wasm-bindgen --no-typescript --debug --keep-debug --target web --out-dir "./target/web/$file" "./$targetDir/$file.wasm"
   fi
-  cp index.html "./target/web/$file/." 
+  cp res/*.js "./target/web/$file/." 
+  cp res/*.html "./target/web/$file/."
   sed -i "s/{{}}/$file/g" "./target/web/$file/index.html"
+  sed -i "s/{{}}/$file/g" "./target/web/$file/worker.js"
 done

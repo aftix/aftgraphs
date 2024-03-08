@@ -132,8 +132,6 @@ impl Physics {
     }
 
     pub fn simulate(&mut self, t: f32) {
-        self.states.retain(|(st, _)| *st >= t);
-
         while self.time < t + 1.0 / 15.0 || self.states.len() < 10 {
             let next = self.solver.next().unwrap().unwrap();
             self.time = next.0;
@@ -141,7 +139,7 @@ impl Physics {
         }
     }
 
-    pub fn get_state(&self, t: f32) -> Vec<Instance> {
+    pub fn get_state(&mut self, t: f32) -> Vec<Instance> {
         let state_after = self
             .states
             .iter()
@@ -167,6 +165,8 @@ impl Physics {
                 color: [1.0; 3],
             });
         }
+
+        self.states.retain(|(st, _)| *st >= t);
 
         instances
     }

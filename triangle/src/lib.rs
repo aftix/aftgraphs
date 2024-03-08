@@ -86,7 +86,7 @@ impl Simulation for TriangleSimulation {
         }
     }
 
-    fn new<P: UiPlatform>(renderer: &Renderer<P>) -> Self {
+    async fn new<P: UiPlatform>(renderer: &Renderer<P>) -> Self {
         let module = include_wgsl!(concat!(env!("CARGO_MANIFEST_DIR"), "/res/triangle.wgsl"));
 
         let rotation_layout = BindGroupLayoutBuilder::new()

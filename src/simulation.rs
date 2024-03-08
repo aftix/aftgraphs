@@ -35,7 +35,8 @@ pub trait Simulation: 'static {
     #[allow(async_fn_in_trait)]
     async fn on_input(&mut self, event: InputEvent);
 
-    fn new<P: UiPlatform>(renderer: &Renderer<P>) -> Self;
+    #[allow(async_fn_in_trait)]
+    async fn new<P: UiPlatform>(renderer: &Renderer<P>) -> Self;
 }
 
 pub struct SimulationContext<T: Simulation, P: UiPlatform> {

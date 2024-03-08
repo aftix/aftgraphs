@@ -19,6 +19,7 @@ pushd "$NAME" >/dev/null || exit 3
 cat >> Cargo.toml <<<'
 aftgraphs = { path="../" }
 aftgraphs-macros = { path="../aftgraphs-macros" }
+log = "0.4"
 winit = { version = "0.29.3", features=["rwh_05", "wayland", "x11"] }
 wgpu = { version="0.18", features=["webgl", "spirv"] }
 

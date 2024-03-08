@@ -4,13 +4,11 @@ use crate::input::Inputs;
 use crate::simulation::InputEvent;
 use crate::simulation::{Simulation, SimulationBuilder, SimulationContext};
 use crate::ui::UiWinitPlatform;
-use async_std::sync::Mutex;
-use std::{
-    fs::File,
-    future::Future,
-    io::read_to_string,
-    sync::Arc,
+use async_std::{
+    future::{pending, timeout},
+    sync::Mutex,
 };
+use std::{fs::File, future::Future, io::read_to_string, sync::Arc, time::Duration};
 use winit::{event_loop::EventLoopBuilder, window::Window};
 
 fn init_platform() {
@@ -19,6 +17,19 @@ fn init_platform() {
 
 pub fn block_on<F: Future<Output = ()> + 'static>(fut: F) {
     pollster::block_on(fut);
+}
+
+pub async fn wait(time: f64) {
+    let duration = Duration::from_secs_f64(time);
+    timeout(duration, pending::<()>()).await.err();
+}
+
+pub type Handle = std::thread::JoinHandle<()>;
+pub type SpawnError = ();
+
+pub async fn spawn(f: impl FnOnce() + Send + 'static) -> Result<Handle, SpawnError> {
+    let handle = std::thread::spawn(f);
+    Ok(handle)
 }
 
 pub fn sim_main<T: Simulation>(inputs: Inputs) {

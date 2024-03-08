@@ -51,6 +51,7 @@ dependencies = [
  "imgui",
  "imgui-wgpu",
  "imgui-winit-support",
+ "js-sys",
  "lazy_static",
  "log",
  "num-traits",
