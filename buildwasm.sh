@@ -4,6 +4,8 @@ if [[ "$1" != "debug" ]]; then
   release=1
 fi
 
+export RUSTFLAGS="-C target-feature=+atomics,+bulk-memory,+mutable-globals"
+
 if [[ $release -eq 1 ]]; then
   cargo build --release --lib --target wasm32-unknown-unknown
 else
@@ -19,9 +21,9 @@ for dir in *; do
   [[ -f "$dir/Cargo.toml" ]] || continue
   cd "$dir" || exit
   if [[ $release -eq 1 ]]; then
-    cargo build --lib --target wasm32-unknown-unknown --profile web-release
+    cargo build --lib --target wasm32-unknown-unknown --profile web-release -Z build-std=panic_abort,std
   else
-    cargo build --lib --target wasm32-unknown-unknown
+    cargo build --lib --target wasm32-unknown-unknown -Z build-std=panic_abort,std
   fi
   cd .. || exit
 done
