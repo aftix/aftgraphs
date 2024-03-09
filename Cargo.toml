@@ -15,6 +15,7 @@ default = ["x264"]
 async-std = "1.12"
 bytemuck = { version = "1.14", features = ["derive"] }
 copypasta = "0.10"
+crossbeam = "0.8.4"
 futures-intrusive = "0.5"
 lazy_static = "1.4"
 log = "0.4"
@@ -29,7 +30,6 @@ winit = { version = "0.29.3", features = ["rwh_05", "wayland", "x11", "serde"] }
 
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
 clap = { version = "4.5", features = ["derive", "cargo"] }
-crossbeam = "0.8.4"
 dcv-color-primitives = "0.6"
 env_logger = "0.10"
 pollster = "0.3"
@@ -98,14 +98,13 @@ imgui-wgpu = { path = "./imgui-wgpu" }
 imgui-winit-support = { path = "./imgui-rs/imgui-winit-support" }
 
 [profile.dev]
-opt-level = 2
+opt-level = 1
 
 [profile.release]
 lto = true
 
 [profile.web-release]
 inherits = "release"
-opt-level = "s"
 strip = "debuginfo"
 panic = "abort"
 codegen-units = 1

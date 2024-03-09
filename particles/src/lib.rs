@@ -1,12 +1,9 @@
-use aftgraphs::{block_on, prelude::*, spawn};
+use aftgraphs::prelude::*;
 use aftgraphs_macros::sim_main;
-use async_std::channel::{self, Receiver, Sender};
-
-use physics::Physics;
-use rand::prelude::*;
 use std::{cmp::Ordering, collections::HashMap, num::NonZeroU64};
 
 mod physics;
+use physics::Physics;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 #[repr(C, align(16))]
@@ -61,170 +58,7 @@ struct Particles {
     instances: InstanceBuffer<Vertex, Instance>,
     indices: IndexBuffer<u16>,
     aspect_ratio: Uniform<Float>,
-    distribution: rand::distributions::Uniform<f32>,
-    velocity_distribution: rand::distributions::Uniform<f32>,
-    angle_distribution: rand::distributions::Uniform<f32>,
-    rng: ThreadRng,
-    physics_thread: PhysicsMessager,
-}
-
-#[derive(Debug)]
-enum PhysicsMessage {
-    Simulate(f32),
-    GetState(f32),
-    GetLength,
-    Length(usize),
-    AspectRatio(f32),
-    State(Vec<Instance>),
-    PushCircle((f32, f32), (f32, f32)),
-    PushCircleResponse(bool),
-    Pop(usize),
-}
-
-struct PhysicsMessager {
-    send: Sender<PhysicsMessage>,
-    recv: Receiver<PhysicsMessage>,
-    _handle: Handle,
-}
-
-impl Drop for PhysicsMessager {
-    fn drop(&mut self) {
-        self.send.close();
-        self.recv.close();
-    }
-}
-
-fn physics_thread(
-    radius: f32,
-    aspect_ratio: f32,
-    main_rx: Receiver<PhysicsMessage>,
-    worker_tx: Sender<PhysicsMessage>,
-) {
-    block_on(async move {
-        let mut physics = Physics::new(0.0, radius, aspect_ratio)
-            .expect("aftgraphs::particles::PhysicsMessager: failed to create Physics");
-        log::debug!("aftgraphs::particles::PhysicsMessager: Starting physics loop");
-
-        while let Ok(msg) = main_rx.recv().await {
-            match msg {
-                PhysicsMessage::Simulate(t) => {
-                    physics.simulate(t);
-                }
-                PhysicsMessage::GetState(t) => {
-                    let state = physics.get_state(t);
-                    if let Err(e) = worker_tx.send(PhysicsMessage::State(state)).await {
-                        log::warn!("aftgraphs::particles::PhysicsMessager: failed to send: {e}");
-                    }
-                }
-                PhysicsMessage::PushCircle(circle, velocity) => {
-                    let resp = physics.push_circle(circle, velocity);
-                    if let Err(e) = worker_tx
-                        .send(PhysicsMessage::PushCircleResponse(resp))
-                        .await
-                    {
-                        log::warn!("aftgraphs::particles::PhysicsMessager: failed to send: {e}");
-                    }
-                }
-                PhysicsMessage::Pop(num) => {
-                    physics.pop(num);
-                }
-                PhysicsMessage::AspectRatio(aspect_ratio) => {
-                    physics.update_aspect_ratio(aspect_ratio);
-                }
-                PhysicsMessage::GetLength => {
-                    if let Err(e) = worker_tx.send(PhysicsMessage::Length(physics.len())).await {
-                        log::warn!("aftgraphs::particles::PhysicsMessager: failed to send: {e}");
-                    }
-                }
-                msg => log::warn!(
-                    "aftgraphs::particles::PhysicsMessager: invalid message recieved: {msg:?}"
-                ),
-            }
-        }
-        log::debug!("aftgraphs::particles::PhysicsMessager: Ending physics loop");
-    });
-}
-
-impl PhysicsMessager {
-    async fn new(_display: bool, radius: f32, aspect_ratio: f32) -> Self {
-        let (main_tx, main_rx) = channel::bounded(10);
-        let (worker_tx, worker_rx) = channel::bounded(10);
-
-        let closure = move || physics_thread(radius, aspect_ratio, main_rx, worker_tx);
-        let handle = spawn(closure)
-            .await
-            .expect("aftgraphs::particles::PhysicsMessager: Failed to spawn thread");
-
-        Self {
-            send: main_tx,
-            recv: worker_rx,
-            _handle: handle,
-        }
-    }
-
-    async fn len(&self) -> usize {
-        self.send
-            .send(PhysicsMessage::GetLength)
-            .await
-            .expect("aftgraphs::particles::PhysicsMessager::len: failed to send message");
-
-        match self.recv.recv().await {
-            Ok(PhysicsMessage::Length(len)) => len,
-            msg => {
-                panic!("aftgraphs::particles::PhysicsMessager::len: invalid response {msg:?}")
-            }
-        }
-    }
-
-    async fn update_aspect_ratio(&self, aspect_ratio: f32) {
-        self.send
-            .send(PhysicsMessage::AspectRatio(aspect_ratio))
-            .await.expect("aftgraphs::particles::PhysicsMessager::update_aspect_ratio: failed to send message");
-    }
-
-    async fn simulate(&self, t: f32) {
-        self.send
-            .send(PhysicsMessage::Simulate(t))
-            .await
-            .expect("aftgraphs::particles::PhysicsMessager::simulate: failed to send message");
-    }
-
-    async fn get_state(&self, t: f32) -> Vec<Instance> {
-        self.send
-            .send(PhysicsMessage::GetState(t))
-            .await
-            .expect("aftgraphs::particles::PhysicsMessager::get_state: failed to send message");
-
-        match self.recv.recv().await {
-            Ok(PhysicsMessage::State(state)) => state,
-            msg => {
-                panic!("aftgraphs::particles::PhysicsMessager::get_state: invalid response {msg:?}")
-            }
-        }
-    }
-
-    async fn push_circle(&mut self, circle: (f32, f32), velocity: (f32, f32)) -> bool {
-        self.send
-            .send(PhysicsMessage::PushCircle(circle, velocity))
-            .await
-            .expect("aftgraphs::particles::PhysicsMessager::push_circle: failed to send message");
-
-        match self.recv.recv().await {
-            Ok(PhysicsMessage::PushCircleResponse(resp)) => resp,
-            msg => {
-                panic!(
-                    "aftgraphs::particles::PhysicsMessager::push_circle: invalid response {msg:?}"
-                )
-            }
-        }
-    }
-
-    async fn pop(&self, num: usize) {
-        self.send
-            .send(PhysicsMessage::Pop(num))
-            .await
-            .expect("aftgraphs::particles::PhysicsMessager::push_circle: failed to send message");
-    }
+    physics: Physics,
 }
 
 impl Simulation for Particles {
@@ -304,24 +138,20 @@ impl Simulation for Particles {
             .with_bind_group_layout(aspect_ratio.bind_group_layout())
             .build(renderer);
 
-        let distribution = rand::distributions::Uniform::new_inclusive(-1.0, 1.0);
-        let velocity_distribution = rand::distributions::Uniform::new_inclusive(0.0, MAX_VELOCITY);
-        let angle_distribution = rand::distributions::Uniform::new(0.0, std::f32::consts::TAU);
-        let rng = thread_rng();
+        let mut physics = Physics::new(renderer.surface.is_some(), 0.0, RADIUS, aspect_ratio.0)
+            .await
+            .expect("aftgraphs::particles::Particles::physics failed to create");
 
-        let physics_thread =
-            PhysicsMessager::new(renderer.surface.is_some(), RADIUS, aspect_ratio.0).await;
+        if !physics.spawn(1).await {
+            panic!("aftgraphs::particles::Particles::physics failed to spawn");
+        }
 
         Self {
             pipeline,
             instances,
             indices,
             aspect_ratio,
-            distribution,
-            velocity_distribution,
-            angle_distribution,
-            rng,
-            physics_thread,
+            physics,
         }
     }
 
@@ -333,16 +163,15 @@ impl Simulation for Particles {
         mut render_pass: RenderPass<'_>,
         inputs: &mut HashMap<String, InputValue>,
     ) {
-        self.physics_thread
+        self.physics
             .update_aspect_ratio(renderer.aspect_ratio as f32)
             .await;
-        self.physics_thread.simulate(renderer.time as f32).await;
 
         self.aspect_ratio
             .update(renderer, Float(renderer.aspect_ratio as f32));
 
         if let Some(inp) = inputs.get_mut("controls.count") {
-            let physics_len = self.physics_thread.len().await;
+            let physics_len = self.physics.len();
 
             let val = if let &mut InputValue::SLIDER(val) = inp {
                 val as usize
@@ -353,15 +182,15 @@ impl Simulation for Particles {
 
             match val.cmp(&physics_len) {
                 Ordering::Less => {
-                    self.physics_thread.pop(physics_len - val).await;
+                    self.physics.pop(physics_len - val).await;
 
                     let mut instances = self.instances.modify(renderer);
                     instances.instances_drain(val..);
                 }
                 Ordering::Greater => {
-                    self.spawn(val - physics_len).await;
+                    self.physics.spawn(val - physics_len).await;
 
-                    if self.physics_thread.len().await == physics_len {
+                    if self.physics.len() == physics_len {
                         *inp = InputValue::SLIDER(physics_len as f64);
                     }
                 }
@@ -371,7 +200,7 @@ impl Simulation for Particles {
 
         {
             let mut instances = self.instances.modify(renderer);
-            *instances.instances_vec() = self.physics_thread.get_state(renderer.time as f32).await;
+            *instances.instances_vec() = self.physics.get_state(renderer.time as f32).await;
         }
 
         render_pass.set_pipeline(&self.pipeline);
@@ -379,39 +208,6 @@ impl Simulation for Particles {
         self.indices.bind(&mut render_pass);
         self.aspect_ratio.bind(&mut render_pass, 0);
         render_pass.draw_indexed(self.indices.range(), 0, self.instances.range_instance());
-    }
-}
-
-impl Particles {
-    async fn spawn(&mut self, num: usize) {
-        let mut idx = 0;
-        let mut failed_circles = 0;
-
-        while idx < num && failed_circles < 50 {
-            let x = self.rng.sample(self.distribution);
-            let y = self.rng.sample(self.distribution);
-
-            let velocity = self.rng.sample(self.velocity_distribution);
-            let angle = self.rng.sample(self.angle_distribution);
-            let velocity = (velocity * angle.cos(), velocity * angle.sin());
-
-            if x <= -1.0 + RADIUS || x >= 1.0 - RADIUS {
-                failed_circles += 1;
-                continue;
-            }
-            if y <= -1.0 + RADIUS * self.aspect_ratio.0 || y >= 1.0 - RADIUS * self.aspect_ratio.0 {
-                failed_circles += 1;
-                continue;
-            }
-
-            if !self.physics_thread.push_circle((x, y), velocity).await {
-                failed_circles += 1;
-                continue;
-            }
-
-            failed_circles = 0;
-            idx += 1;
-        }
     }
 }
 

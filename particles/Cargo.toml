@@ -9,6 +9,7 @@ aftgraphs = { path = "../" }
 aftgraphs-macros = { path = "../aftgraphs-macros" }
 async-std = "1.12"
 bacon-sci = "0.16.0"
+crossbeam = "0.8.4"
 log = "0.4"
 rand = "0.8"
 web-time = "1.0.0"

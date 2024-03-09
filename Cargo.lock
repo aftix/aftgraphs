@@ -1920,6 +1920,7 @@ dependencies = [
  "aftgraphs-macros",
  "async-std",
  "bacon-sci",
+ "crossbeam",
  "js-sys",
  "log",
  "rand",
