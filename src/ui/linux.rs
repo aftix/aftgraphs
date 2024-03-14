@@ -180,5 +180,6 @@ impl Ui {
     }
 }
 
+#[allow(dead_code)]
 #[derive(Debug)]
 pub struct UiFrame<'a>(&'a mut imgui::Ui);

@@ -4,7 +4,7 @@ use crate::{
     ui::{UiPlatform, UiWinitPlatform},
     GraphicsInitError,
 };
-use async_mutex::Mutex;
+use async_std::sync::Mutex;
 use std::{marker::PhantomData, rc::Rc, sync::Arc};
 use thiserror::Error;
 use winit::{event_loop::EventLoop, window::Window};
@@ -121,7 +121,7 @@ impl<T: Simulation> SimulationBuilder<T, (), BuilderComplete> {
         }
 
         Ok(super::SimulationContext {
-            simulation: <T as Simulation>::new(&renderer),
+            simulation: <T as Simulation>::new(&renderer).await,
             event_loop: self.event_loop,
             renderer: Rc::new(Mutex::new(renderer)),
             window: self.window,
@@ -159,7 +159,7 @@ impl<T: Simulation> SimulationBuilder<T, UiWinitPlatform, BuilderComplete> {
         }
 
         Ok(super::SimulationContext {
-            simulation: <T as Simulation>::new(&renderer),
+            simulation: <T as Simulation>::new(&renderer).await,
             event_loop: self.event_loop,
             renderer: Rc::new(Mutex::new(renderer)),
             window: self.window,

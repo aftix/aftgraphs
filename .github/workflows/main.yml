@@ -61,9 +61,11 @@ jobs:
         with:
           submodules: recursive
           
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@master
         with:
           targets: ${{ matrix.arch }}
+          toolchain: nightly-2024-02-04
+          components: rust-src
 
       - uses: Swatinem/rust-cache@v2
         with:
@@ -92,10 +94,11 @@ jobs:
         with:
           submodules: recursive
           
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@master
         with:
-          components: clippy
+          components: clippy,rust-src
           targets: ${{ matrix.arch }}
+          toolchain: nightly-2024-02-04
 
       - uses: Swatinem/rust-cache@v2
         with:
@@ -157,9 +160,11 @@ jobs:
         with:
           submodules: recursive
           
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@master
         with:
+          components: rust-src
           targets: wasm32-unknown-unknown
+          toolchain: nightly-2024-02-04
 
       - uses: Swatinem/rust-cache@v2
 
@@ -167,6 +172,7 @@ jobs:
         uses: baptiste0928/cargo-install@v3
         with:
           crate: wasm-bindgen-cli
+          version: =0.2.90
       
       - name: Build WASM targets
         run: ./buildwasm.sh

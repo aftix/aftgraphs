@@ -3,7 +3,7 @@ use crate::{
     ui::{Ui, UiWinitPlatform},
     GraphicsInitError,
 };
-use async_mutex::Mutex;
+use async_std::sync::Mutex;
 use winit::window::Window;
 
 pub async fn init(window: &Window) -> Result<Renderer<UiWinitPlatform>, GraphicsInitError> {

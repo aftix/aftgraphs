@@ -4,6 +4,8 @@ if [[ "$1" != "debug" ]]; then
   release=1
 fi
 
+export RUSTFLAGS="-C target-feature=+atomics,+bulk-memory,+mutable-globals"
+
 if [[ $release -eq 1 ]]; then
   cargo build --release --lib --target wasm32-unknown-unknown
 else
@@ -19,9 +21,9 @@ for dir in *; do
   [[ -f "$dir/Cargo.toml" ]] || continue
   cd "$dir" || exit
   if [[ $release -eq 1 ]]; then
-    cargo build --lib --target wasm32-unknown-unknown --profile web-release
+    cargo build --lib --target wasm32-unknown-unknown --profile web-release -Z build-std=panic_abort,std
   else
-    cargo build --lib --target wasm32-unknown-unknown
+    cargo build --lib --target wasm32-unknown-unknown -Z build-std=panic_abort,std
   fi
   cd .. || exit
 done
@@ -40,6 +42,8 @@ for file in "$targetDir/"*.wasm; do
   else
     wasm-bindgen --no-typescript --debug --keep-debug --target web --out-dir "./target/web/$file" "./$targetDir/$file.wasm"
   fi
-  cp index.html "./target/web/$file/." 
+  cp res/*.js "./target/web/$file/." 
+  cp res/*.html "./target/web/$file/."
   sed -i "s/{{}}/$file/g" "./target/web/$file/index.html"
+  sed -i "s/{{}}/$file/g" "./target/web/$file/worker.js"
 done

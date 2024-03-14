@@ -1,5 +1,5 @@
 use crate::block_on;
-use async_rwlock::RwLock;
+use async_std::sync::RwLock;
 use clap::{crate_version, Args, Command};
 use lazy_static::lazy_static;
 use std::{num::NonZeroU32, path::PathBuf};

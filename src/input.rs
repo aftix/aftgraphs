@@ -1,5 +1,5 @@
 use crate::prelude::{Arc, Mutex};
-use async_mutex::MutexGuard;
+use async_std::sync::MutexGuard;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::convert::{AsMut, AsRef};

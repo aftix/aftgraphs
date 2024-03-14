@@ -1,7 +1,7 @@
 use crate::input::{InputState, InputValue, Inputs};
 use crate::simulation::Simulation;
 use crate::ui::{Ui, UiDrawError, UiPlatform};
-use async_mutex::Mutex;
+use async_std::sync::Mutex;
 use std::collections::HashMap;
 use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
