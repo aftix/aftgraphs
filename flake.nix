@@ -3,6 +3,7 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    flake-utils.url = "github:numtide/flake-utils";
     rust-overlay.url = "github:oxalica/rust-overlay";
     rust-overlay.inputs.nixpkgs.follows = "nixpkgs";
   };
@@ -10,6 +11,7 @@
   outputs = {
     nixpkgs,
     rust-overlay,
+    flake-utils,
     ...
   }: let
     system = "x86_64-linux"; # Building only supported on x64 linux
@@ -29,26 +31,29 @@
       lldb_18
     ];
     libclangPath = pkgs.lib.makeLibraryPath [llvmPkgs.libclang.lib];
-  in {
-    formatter."${system}" = pkgs.alejandra;
+  in
+    flake-utils.lib.eachDefaultSystem (system: let
+      pkgs = nixpkgs.legacyPackages.${system};
+    in {
+      formatter = pkgs.alejandra ? pkgs.nix-fmt;
 
-    devShells."${system}".default = let
-      inherit nativeBuildInputs;
-    in
-      pkgs.mkShell {
+      devShells.default = let
         inherit nativeBuildInputs;
-        buildInputs = buildDependencies ++ devDependencies;
+      in
+        pkgs.mkShell {
+          inherit nativeBuildInputs;
+          buildInputs = buildDependencies ++ devDependencies;
 
-        RUSTC_VERSION = rustToolchainCfg.toolchain.channel;
-        RUSTC_WRAPPER = "${pkgs.sccache}/bin/sccache";
-        LIBCLANG_PATH = libclangPath;
+          RUSTC_VERSION = rustToolchainCfg.toolchain.channel;
+          RUSTC_WRAPPER = "${pkgs.sccache}/bin/sccache";
+          LIBCLANG_PATH = libclangPath;
 
-        shellHook = ''
-          export PATH="$PATH:''${CARGO_HOME:-~/.cargo}/bin"
-          export PATH="$PATH:''${RUSTUP_HOME:-~/.rustup}/toolchains/$RUSTC_VERSION-x86_64-unknown-linux-gnu/bin/"
-          rustup override set ${rustToolchainCfg.toolchain.channel}
-          ${builtins.concatStringsSep "\n" (map (t: "rustup target add ${t}") rustToolchainCfg.toolchain.targets)}
-        '';
-      };
-  };
+          shellHook = ''
+            export PATH="$PATH:''${CARGO_HOME:-~/.cargo}/bin"
+            export PATH="$PATH:''${RUSTUP_HOME:-~/.rustup}/toolchains/$RUSTC_VERSION-x86_64-unknown-linux-gnu/bin/"
+            rustup override set ${rustToolchainCfg.toolchain.channel}
+            ${builtins.concatStringsSep "\n" (map (t: "rustup target add ${t}") rustToolchainCfg.toolchain.targets)}
+          '';
+        };
+    });
 }

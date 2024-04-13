@@ -193,11 +193,11 @@ jobs:
 
       - name: Deploy simulations
         run: |
-          scp target/simulations.tar.gz "www-data@aftix.xyz:~/simulations.tar.gz"
-          ssh "www-data@aftix.xyz" 'sh -ls' <<< "$SCRIPT"
+          scp target/simulations.tar.gz "www@aftix.xyz:/srv/simulations.tar.gz"
+          ssh "www@aftix.xyz" 'sh -ls' <<< "$SCRIPT"
         env:
           SCRIPT: >-
-            cd $HOME ;
+            cd /srv ;
             tar xvf simulations.tar.gz ;
             rm simulations.tar.gz
             
