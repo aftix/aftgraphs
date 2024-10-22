@@ -1,58 +1,16 @@
 [workspace]
 members = ["aftgraphs-macros", "particles", "triangle"]
-exclude = ["imgui-rs", "imgui-wgpu"]
+exclude = ["imgui-rs", "imgui-wgpu", "imgui-winit-support"]
 
-[package]
-name = "aftgraphs"
-version = "0.1.0"
-edition = "2021"
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
-[features]
-default = ["x264"]
-
-[dependencies]
+[workspace.dependencies]
 async-std = "1.12"
-bytemuck = { version = "1.14", features = ["derive"] }
-copypasta = "0.10"
 crossbeam = "0.8.4"
-futures-intrusive = "0.5"
-lazy_static = "1.4"
-log = "0.4"
-num-traits = "0.2"
-serde = { version = "1.0", features = ["derive"] }
-smallvec = "1.13"
-thiserror = "1.0.57"
-toml = "0.8"
-web-time = "1.0"
-wgpu = { version = "0.18", default-features = false, features = ["webgl", "spirv", "trace", "wgsl"] }
-winit = { version = "0.29.3", features = ["rwh_05", "wayland", "x11", "serde"] }
-
-[target.'cfg(not(target_family = "wasm"))'.dependencies]
-clap = { version = "4.5", features = ["derive", "cargo"] }
-dcv-color-primitives = "0.6"
-env_logger = "0.10"
-pollster = "0.3"
-imgui = "0.11"
-imgui-wgpu = "0.24"
-imgui-winit-support = "0.11"
-x264 = { git = "https://github.com/rust-av/x264-rs/", optional = true }
-
-[target.'cfg(not(target_family = "wasm"))'.dev-dependencies]
-test-case = "3.3"
-
-[target.'cfg(not(target_family = "wasm"))'.dependencies.winit]
-version = "0.29.3"
-features = ["rwh_05", "wayland", "x11"]
-
-[target.'cfg(target_family = "wasm")'.dependencies]
-anyhow = "1.0"
-console_error_panic_hook = "0.1"
-console_log = { version = "0.2", features = ["color"] }
 js-sys = "0.3"
-wasm-bindgen = "=0.2.90"
-wasm-bindgen-futures = "0.4"
-web-sys = { version = "0.3", features = [
+log = "0.4"
+wayland-backend = "=0.3.7"
+wasm-bindgen = "=0.2.95"
+wasm-bindgen-futures = "=0.4.45"
+web-sys = { version="0.3.72", features = [
   "Document",
   "DomRect",
   "Element",
@@ -90,12 +48,69 @@ web-sys = { version = "0.3", features = [
   "WorkerOptions",
   "WorkerType",
   "MessageEvent",
-] }
+]}
+web-time = "1.0"
+wgpu = { version = "22.1", default-features = false, features = ["webgl", "spirv", "wgsl"]}
+winit = { version = "=0.30.5", features = ["serde"] }
+
+[package]
+name = "aftgraphs"
+version = "0.1.0"
+edition = "2021"
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[features]
+default = ["x264"]
+
+[dependencies]
+async-std = { workspace = true }
+bytemuck = { version = "1.14", features = ["derive"] }
+copypasta = "0.10"
+crossbeam = "0.8.4"
+futures-intrusive = "0.5"
+lazy_static = "1.4"
+log = "0.4"
+num-traits = "0.2"
+serde = { version = "1.0", features = ["derive"] }
+smallvec = "1.13"
+thiserror = "1.0.57"
+toml = "0.8"
+web-time = { workspace = true }
+wgpu = { workspace = true }
+
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
+clap = { version = "4.5", features = ["derive", "cargo"] }
+compiler_builtins = "0.1.134"
+dcv-color-primitives = "0.6"
+env_logger = "0.10"
+pollster = "0.3"
+imgui = "=0.12.0"
+imgui-wgpu = "=0.25.0"
+imgui-winit-support = "=0.13.0"
+winit = { workspace = true }
+x264 = { git = "https://github.com/rust-av/x264-rs/", optional = true }
+
+[target.'cfg(not(target_family = "wasm"))'.dev-dependencies]
+test-case = "3.3"
+
+[target.'cfg(target_family = "wasm")'.dependencies]
+anyhow = "1.0"
+console_error_panic_hook = "0.1"
+console_log = { version = "0.2", features = ["color"] }
+js-sys = "0.3"
+wasm-bindgen = { workspace = true }
+wasm-bindgen-futures = { workspace = true }
+web-sys = { workspace = true  }
 
 [patch.crates-io]
 imgui = { path = "./imgui-rs/imgui" }
+imgui-sys = { path = "./imgui-rs/imgui-sys" }
 imgui-wgpu = { path = "./imgui-wgpu" }
-imgui-winit-support = { path = "./imgui-rs/imgui-winit-support" }
+imgui-winit-support = { path = "./imgui-winit-support" }
+
+[patch."https://github.com/imgui-rs/imgui-rs"]
+imgui = { path = "./imgui-rs/imgui" }
+imgui-sys = { path = "./imgui-rs/imgui-sys" }
 
 [profile.dev]
 opt-level = 1
