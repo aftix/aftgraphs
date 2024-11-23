@@ -15,7 +15,7 @@ pub struct VertexBufferBuilder<'a, T: NoUninit> {
     data: Vec<T>,
 }
 
-impl<'a, T: NoUninit> Default for VertexBufferBuilder<'a, T> {
+impl<T: NoUninit> Default for VertexBufferBuilder<'_, T> {
     fn default() -> Self {
         Self::new()
     }
@@ -152,7 +152,7 @@ pub struct InstanceBufferBuilder<'a, V: NoUninit, I: NoUninit> {
     i_data: Vec<I>,
 }
 
-impl<'a, V: NoUninit, I: NoUninit> Default for InstanceBufferBuilder<'a, V, I> {
+impl<V: NoUninit, I: NoUninit> Default for InstanceBufferBuilder<'_, V, I> {
     fn default() -> Self {
         Self::new()
     }

@@ -51,13 +51,13 @@ pub struct UniformBuilder<'a, T: NoUninit, S: BuilderState> {
     state: PhantomData<S>,
 }
 
-impl<'a, T: NoUninit> Default for UniformBuilder<'a, T, BuilderInit> {
+impl<T: NoUninit> Default for UniformBuilder<'_, T, BuilderInit> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<'a, T: NoUninit> UniformBuilder<'a, T, BuilderInit> {
+impl<T: NoUninit> UniformBuilder<'_, T, BuilderInit> {
     pub fn new() -> Self {
         Self {
             bind_group_layout: None,
@@ -69,7 +69,7 @@ impl<'a, T: NoUninit> UniformBuilder<'a, T, BuilderInit> {
     }
 }
 
-impl<'a, T: NoUninit> UniformBuilder<'a, T, BuilderComplete> {
+impl<T: NoUninit> UniformBuilder<'_, T, BuilderComplete> {
     pub fn build<P: UiPlatform>(self, renderer: &Renderer<P>) -> Uniform<T> {
         let Self {
             bind_group_layout,

@@ -95,7 +95,7 @@ impl Ui {
         let mut ctx = Context::create();
         ctx.set_ini_filename(None);
 
-        let mut platform = WinitPlatform::init(&mut ctx);
+        let mut platform = WinitPlatform::new(&mut ctx);
         {
             let dpi_mode = if let Ok(factor) = std::env::var("IMGUI_FORCE_DPI_FACTOR") {
                 match factor.parse::<f64>() {

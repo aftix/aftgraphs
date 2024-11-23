@@ -1,6 +1,5 @@
-use crate::ui::UiPlatform;
-
 use super::{RenderPipeline, Renderer, Shader};
+use crate::{ui::UiPlatform, GraphicsInitError};
 use std::{marker::PhantomData, num::NonZeroU32};
 
 mod sealed {
@@ -53,7 +52,7 @@ pub struct BuilderComplete;
 impl sealed::Sealed for BuilderInit {}
 impl sealed::Sealed for BuilderComplete {}
 
-impl<'a> Default for ShaderBuilder<'a, BuilderInit> {
+impl Default for ShaderBuilder<'_, BuilderInit> {
     fn default() -> Self {
         Self::new()
     }
@@ -222,7 +221,7 @@ impl<'a, S: BuilderState> ShaderBuilder<'a, S> {
     }
 }
 
-impl<'a> Default for BindGroupLayoutBuilder<'a> {
+impl Default for BindGroupLayoutBuilder<'_> {
     fn default() -> Self {
         Self::new()
     }
@@ -278,7 +277,7 @@ impl<'a> BindGroupLayoutBuilder<'a> {
     }
 }
 
-impl<'a> Default for RenderPipelineBuilder<'a, BuilderInit> {
+impl Default for RenderPipelineBuilder<'_, BuilderInit> {
     fn default() -> Self {
         Self::new()
     }
@@ -388,7 +387,7 @@ impl<'a> RenderPipelineBuilder<'a, BuilderInit> {
     }
 }
 
-impl<'a> RenderPipelineBuilder<'a, BuilderComplete> {
+impl RenderPipelineBuilder<'_, BuilderComplete> {
     /// Use a Renderer to build the completed pipeline.
     /// This pipeline is used when calling Renderer::render
     pub fn build<P: UiPlatform>(self, renderer: &Renderer<P>) -> RenderPipeline {
@@ -413,6 +412,7 @@ impl<'a> RenderPipelineBuilder<'a, BuilderComplete> {
             module: &vertex_shader.shader,
             entry_point: vertex_shader.vs_entry,
             buffers: vertex_shader.buffers.as_slice(),
+            compilation_options: Default::default(),
         };
 
         let fragment_state = if fragment_use_vertex_shader {
@@ -420,12 +420,14 @@ impl<'a> RenderPipelineBuilder<'a, BuilderComplete> {
                 module: &vertex_shader.shader,
                 entry_point: unsafe { vertex_shader.fs_entry.unwrap_unchecked() },
                 targets: vertex_shader.targets.as_slice(),
+                compilation_options: Default::default(),
             })
         } else {
             fragment_shader.as_ref().map(|shader| wgpu::FragmentState {
                 module: &shader.shader,
                 entry_point: unsafe { shader.fs_entry.unwrap_unchecked() },
                 targets: shader.targets.as_slice(),
+                compilation_options: Default::default(),
             })
         };
 
@@ -448,6 +450,7 @@ impl<'a> RenderPipelineBuilder<'a, BuilderComplete> {
                 depth_stencil,
                 multisample,
                 multiview,
+                cache: None,
             });
 
         RenderPipeline { layout, pipeline }
@@ -459,12 +462,15 @@ impl<'a, S: BuilderState> RenderPipelineBuilder<'a, S> {
     /// To use the fragment shader with the vertex shader, use
     /// RenderPipelineBuilder::with_vertex_shader .
     /// Returns Err(self) if shader is not None but does not have an fs_entry
-    pub fn with_fragment_shader(mut self, shader: Option<Shader<'a>>) -> Result<Self, Self> {
+    pub fn with_fragment_shader(
+        mut self,
+        shader: Option<Shader<'a>>,
+    ) -> Result<Self, GraphicsInitError> {
         if shader
             .as_ref()
             .is_some_and(|shader| shader.fs_entry.is_none())
         {
-            Err(self)
+            Err(GraphicsInitError::FailedFragmentAttach)
         } else {
             self.fragment_shader = shader;
             self.fragment_use_vertex_shader = false;

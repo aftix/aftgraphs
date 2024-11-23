@@ -73,7 +73,7 @@ pub struct HeadlessInput {
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-pub async fn init(mut size: (u32, u32)) -> Result<Renderer<()>, GraphicsInitError> {
+pub async fn init(mut size: (u32, u32)) -> Result<Renderer<'static, ()>, GraphicsInitError> {
     use GraphicsInitError as HIE;
 
     log::debug!("aftgraphs::headless::init: Initializing renderer");
@@ -97,9 +97,10 @@ pub async fn init(mut size: (u32, u32)) -> Result<Renderer<()>, GraphicsInitErro
         .request_device(
             &wgpu::DeviceDescriptor {
                 label: None,
-                features: wgpu::Features::empty(),
-                limits: wgpu::Limits::downlevel_webgl2_defaults()
+                required_features: wgpu::Features::empty(),
+                required_limits: wgpu::Limits::downlevel_webgl2_defaults()
                     .using_resolution(adapter.limits()),
+                ..Default::default()
             },
             None,
         )

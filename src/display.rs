@@ -4,9 +4,13 @@ use crate::{
     GraphicsInitError,
 };
 use async_std::sync::Mutex;
+use std::sync::Arc;
+use wgpu;
 use winit::window::Window;
 
-pub async fn init(window: &Window) -> Result<Renderer<UiWinitPlatform>, GraphicsInitError> {
+pub async fn init(
+    window: Arc<Window>,
+) -> Result<Renderer<'static, UiWinitPlatform>, GraphicsInitError> {
     log::debug!("aftgraphs::display::init: Initializing display");
 
     let mut size = window.inner_size();
@@ -16,7 +20,7 @@ pub async fn init(window: &Window) -> Result<Renderer<UiWinitPlatform>, Graphics
 
     log::debug!("aftgraphs::display::init: Creating surface");
     let instance = wgpu::Instance::default();
-    let surface = unsafe { instance.create_surface(&window)? };
+    let surface = instance.create_surface(window.clone())?;
     let adapter = instance
         .request_adapter(&wgpu::RequestAdapterOptions {
             power_preference: wgpu::PowerPreference::default(),
@@ -31,9 +35,10 @@ pub async fn init(window: &Window) -> Result<Renderer<UiWinitPlatform>, Graphics
         .request_device(
             &wgpu::DeviceDescriptor {
                 label: None,
-                features: wgpu::Features::empty(),
-                limits: wgpu::Limits::downlevel_webgl2_defaults()
+                required_features: wgpu::Features::empty(),
+                required_limits: wgpu::Limits::downlevel_webgl2_defaults()
                     .using_resolution(adapter.limits()),
+                ..Default::default()
             },
             None,
         )
@@ -56,6 +61,7 @@ pub async fn init(window: &Window) -> Result<Renderer<UiWinitPlatform>, Graphics
         present_mode: wgpu::PresentMode::Fifo,
         alpha_mode: swapchain_capabilities.alpha_modes[0],
         view_formats: vec![],
+        desired_maximum_frame_latency: 2,
     };
 
     log::debug!("aftgraphs::display::init: configuring surface");
@@ -65,7 +71,7 @@ pub async fn init(window: &Window) -> Result<Renderer<UiWinitPlatform>, Graphics
 
     let aspect_ratio = size.width as f64 / size.height as f64;
 
-    let (ui, platform) = Ui::new(window, &device, &queue, swapchain_format);
+    let (ui, platform) = Ui::new(&window, &device, &queue, swapchain_format);
     Ok(Renderer {
         headless: false,
         instance,

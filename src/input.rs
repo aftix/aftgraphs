@@ -52,13 +52,13 @@ impl InputStateGuard<'_> {
     }
 }
 
-impl<'a> AsRef<HashMap<String, InputValue>> for InputStateGuard<'a> {
+impl AsRef<HashMap<String, InputValue>> for InputStateGuard<'_> {
     fn as_ref(&self) -> &HashMap<String, InputValue> {
         &self.guard
     }
 }
 
-impl<'a> AsMut<HashMap<String, InputValue>> for InputStateGuard<'a> {
+impl AsMut<HashMap<String, InputValue>> for InputStateGuard<'_> {
     fn as_mut(&mut self) -> &mut HashMap<String, InputValue> {
         &mut self.guard
     }

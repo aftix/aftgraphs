@@ -80,13 +80,13 @@ impl DerefMut for RenderPipeline {
     }
 }
 
-pub struct Renderer<P: UiPlatform> {
+pub struct Renderer<'a, P: UiPlatform> {
     pub headless: bool,
     pub instance: wgpu::Instance,
     pub adapter: wgpu::Adapter,
     pub device: wgpu::Device,
     pub render_pass: Mutex<Option<RendererPass>>,
-    pub surface: Option<wgpu::Surface>,
+    pub surface: Option<wgpu::Surface<'a>>,
     pub queue: wgpu::Queue,
     pub config: Option<wgpu::SurfaceConfiguration>,
     pub texture: Option<wgpu::Texture>,
@@ -119,10 +119,10 @@ pub enum RenderError {
     FailedBufferMap,
 }
 
-impl<P: UiPlatform> Renderer<P> {
+impl<'a, P: UiPlatform> Renderer<'a, P> {
     async fn render_display<T: Simulation>(
         &self,
-        surface: &wgpu::Surface,
+        surface: &wgpu::Surface<'_>,
         simulation: Arc<Mutex<T>>,
         input_values: &mut HashMap<String, InputValue>,
     ) {

@@ -41,7 +41,7 @@ impl TriangleSimulation {
 impl Simulation for TriangleSimulation {
     async fn render<P: UiPlatform>(
         &mut self,
-        renderer: &Renderer<P>,
+        renderer: &Renderer<'_, P>,
         mut render_pass: RenderPass<'_>,
         inputs: &mut HashMap<String, InputValue>,
     ) {
@@ -86,7 +86,7 @@ impl Simulation for TriangleSimulation {
         }
     }
 
-    async fn new<P: UiPlatform>(renderer: &Renderer<P>) -> Self {
+    async fn new<P: UiPlatform>(renderer: &Renderer<'_, P>) -> Self {
         let module = include_wgsl!(concat!(env!("CARGO_MANIFEST_DIR"), "/res/triangle.wgsl"));
 
         let rotation_layout = BindGroupLayoutBuilder::new()

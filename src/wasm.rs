@@ -1,14 +1,11 @@
-use crate::input::Inputs;
-use crate::simulation::{InputEvent, Simulation, SimulationBuilder, SimulationContext};
-use crate::ui::UiWinitPlatform;
+use crate::{
+    input::Inputs,
+    simulation::{InputEvent, Simulation, SimulationContext},
+    ui::UiWinitPlatform,
+};
 use std::future::Future;
 use wasm_bindgen::prelude::*;
-use winit::{
-    dpi::PhysicalSize,
-    event_loop::EventLoopBuilder,
-    platform::web::{WindowBuilderExtWebSys, WindowExtWebSys},
-    window::WindowBuilder,
-};
+use winit::event_loop::{ControlFlow, EventLoop};
 
 pub static CANVAS_ID: &str = "renderTarget";
 
@@ -72,39 +69,19 @@ pub fn sim_main<T: Simulation>(inputs: Inputs) {
         .body()
         .expect("aftgraphs::sim_main: document should have a body");
 
-    let event_loop = EventLoopBuilder::<InputEvent>::with_user_event()
+    let event_loop = EventLoop::<InputEvent>::with_user_event()
         .build()
         .expect("aftgraphs::sim_main: failed to build event loop");
-
-    let window = WindowBuilder::new()
-        .with_resizable(false)
-        .with_append(true)
-        .with_inner_size(PhysicalSize::new(1000, 1000))
-        .build(&event_loop)
-        .expect("aftgraphs::sim_main: failed to build winit window");
+    event_loop.set_control_flow(ControlFlow::Poll);
 
     document.set_title(inputs.simulation.name.as_str());
-    let canvas = window.canvas().unwrap();
-    canvas.set_id(CANVAS_ID);
-    let style = &canvas.style();
-    style.set_property("margin", "50px").unwrap();
 
     block_on(async move {
-        log::debug!("aftgraphs::sim_main: building simulation context");
-        let context: SimulationContext<T, UiWinitPlatform> = match SimulationBuilder::new()
-            .window(window)
-            .event_loop(event_loop)
-            .build()
+        log::debug!("aftgraphs::sim_main: running simulation context");
+        if let Err(e) = SimulationContext::<T, UiWinitPlatform>::new()
+            .run_display(inputs)
             .await
         {
-            Ok(context) => context,
-            Err(e) => {
-                log::error!("aftgraphs::sim_main: building simulation context failed: {e}");
-                panic!("aftgraphs::sim_main: building simulation context failed: {e}");
-            }
-        };
-
-        if let Err(e) = context.run_display(inputs).await {
             log::error!("aftgraphs::sim_main: simulation failed: {e}");
             panic!("aftgraphs::sim_main: simulation failed: {e}");
         }

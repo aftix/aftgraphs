@@ -62,7 +62,7 @@ struct Particles {
 }
 
 impl Simulation for Particles {
-    async fn new<P: UiPlatform>(renderer: &Renderer<P>) -> Self {
+    async fn new<P: UiPlatform>(renderer: &Renderer<'_, P>) -> Self {
         let module = include_wgsl!(concat!(env!("CARGO_MANIFEST_DIR"), "/res/particles.wgsl"));
 
         let initial_instances = vec![Instance {
@@ -159,7 +159,7 @@ impl Simulation for Particles {
 
     async fn render<P: UiPlatform>(
         &mut self,
-        renderer: &Renderer<P>,
+        renderer: &Renderer<'_, P>,
         mut render_pass: RenderPass<'_>,
         inputs: &mut HashMap<String, InputValue>,
     ) {

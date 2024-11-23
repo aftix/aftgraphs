@@ -77,6 +77,7 @@ thiserror = "1.0.57"
 toml = "0.8"
 web-time = { workspace = true }
 wgpu = { workspace = true }
+winit = { workspace = true }
 
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
 clap = { version = "4.5", features = ["derive", "cargo"] }
@@ -87,7 +88,6 @@ pollster = "0.3"
 imgui = "=0.12.0"
 imgui-wgpu = "=0.25.0"
 imgui-winit-support = "=0.13.0"
-winit = { workspace = true }
 x264 = { git = "https://github.com/rust-av/x264-rs/", optional = true }
 
 [target.'cfg(not(target_family = "wasm"))'.dev-dependencies]

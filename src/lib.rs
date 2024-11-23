@@ -1,5 +1,6 @@
 use thiserror::Error;
 
+mod app;
 pub mod display;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod headless;
@@ -19,7 +20,11 @@ pub enum GraphicsInitError {
     NoDevice(#[from] wgpu::RequestDeviceError),
     #[error("WGPU failed to create surface: {0}")]
     NoSurface(#[from] wgpu::CreateSurfaceError),
+    #[error("Failed to attach fragment shader")]
+    FailedFragmentAttach,
 }
+
+pub(crate) use crate::app::App;
 
 #[cfg(not(target_arch = "wasm32"))]
 mod cli;
@@ -55,8 +60,7 @@ mod linux;
 #[cfg(target_arch = "wasm32")]
 mod wasm;
 
-#[cfg(target_arch = "wasm32")]
-pub use wasm::*;
-
 #[cfg(not(target_arch = "wasm32"))]
 pub use linux::*;
+#[cfg(target_arch = "wasm32")]
+pub use wasm::*;

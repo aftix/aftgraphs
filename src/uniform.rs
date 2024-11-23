@@ -14,19 +14,19 @@ pub struct Uniform<T: NoUninit> {
     data: T,
 }
 
-pub struct UniformGuard<'a, T: NoUninit, P: UiPlatform> {
+pub struct UniformGuard<'a, 'b, T: NoUninit, P: UiPlatform> {
     uniform: &'a mut Uniform<T>,
-    renderer: &'a Renderer<P>,
+    renderer: &'a Renderer<'b, P>,
     changed: bool,
 }
 
 impl<T: NoUninit> Uniform<T> {
     /// Create a guard to modify the uniform
     /// When the guard drops, it will buffer the data to the GPU
-    pub fn modify<'a, P: UiPlatform>(
+    pub fn modify<'a, 'b, P: UiPlatform>(
         &'a mut self,
-        renderer: &'a Renderer<P>,
-    ) -> UniformGuard<'a, T, P> {
+        renderer: &'a Renderer<'b, P>,
+    ) -> UniformGuard<'a, 'b, T, P> {
         UniformGuard {
             uniform: self,
             renderer,
@@ -80,21 +80,21 @@ impl<T: NoUninit> Deref for Uniform<T> {
     }
 }
 
-impl<'a, T: NoUninit, P: UiPlatform> AsRef<T> for UniformGuard<'a, T, P> {
+impl<T: NoUninit, P: UiPlatform> AsRef<T> for UniformGuard<'_, '_, T, P> {
     fn as_ref(&self) -> &T {
         self.uniform.as_ref()
     }
 }
 
 /// Using this will make the data be sent to the GPU on drop
-impl<'a, T: NoUninit, P: UiPlatform> AsMut<T> for UniformGuard<'a, T, P> {
+impl<T: NoUninit, P: UiPlatform> AsMut<T> for UniformGuard<'_, '_, T, P> {
     fn as_mut(&mut self) -> &mut T {
         self.changed = true;
         &mut self.uniform.data
     }
 }
 
-impl<'a, T: NoUninit, P: UiPlatform> Deref for UniformGuard<'a, T, P> {
+impl<T: NoUninit, P: UiPlatform> Deref for UniformGuard<'_, '_, T, P> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
@@ -103,14 +103,14 @@ impl<'a, T: NoUninit, P: UiPlatform> Deref for UniformGuard<'a, T, P> {
 }
 
 /// Using this will make the data be sent to the GPU on drop
-impl<'a, T: NoUninit, P: UiPlatform> DerefMut for UniformGuard<'a, T, P> {
+impl<T: NoUninit, P: UiPlatform> DerefMut for UniformGuard<'_, '_, T, P> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.as_mut()
     }
 }
 
 /// Buffers data to GPU if changed
-impl<'a, T: NoUninit, P: UiPlatform> Drop for UniformGuard<'a, T, P> {
+impl<T: NoUninit, P: UiPlatform> Drop for UniformGuard<'_, '_, T, P> {
     fn drop(&mut self) {
         if self.changed {
             self.renderer.queue.write_buffer(
