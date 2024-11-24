@@ -3,7 +3,7 @@
 	url = https://github.com/imgui-rs/imgui-rs
 [submodule "imgui-wgpu"]
 	path = imgui-wgpu
-	url = https://github.com/aftix/imgui-wgpu-rs
+	url = https://github.com/Yatekii/imgui-wgpu-rs
 [submodule "imgui-winit-support"]
 	path = imgui-winit-support
 	url = https://github.com/imgui-rs/imgui-winit-support

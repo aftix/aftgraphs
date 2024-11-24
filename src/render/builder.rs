@@ -410,7 +410,7 @@ impl RenderPipelineBuilder<'_, BuilderComplete> {
 
         let vertex_state = wgpu::VertexState {
             module: &vertex_shader.shader,
-            entry_point: vertex_shader.vs_entry,
+            entry_point: Some(vertex_shader.vs_entry),
             buffers: vertex_shader.buffers.as_slice(),
             compilation_options: Default::default(),
         };
@@ -418,14 +418,14 @@ impl RenderPipelineBuilder<'_, BuilderComplete> {
         let fragment_state = if fragment_use_vertex_shader {
             Some(wgpu::FragmentState {
                 module: &vertex_shader.shader,
-                entry_point: unsafe { vertex_shader.fs_entry.unwrap_unchecked() },
+                entry_point: vertex_shader.fs_entry,
                 targets: vertex_shader.targets.as_slice(),
                 compilation_options: Default::default(),
             })
         } else {
             fragment_shader.as_ref().map(|shader| wgpu::FragmentState {
                 module: &shader.shader,
-                entry_point: unsafe { shader.fs_entry.unwrap_unchecked() },
+                entry_point: shader.fs_entry,
                 targets: shader.targets.as_slice(),
                 compilation_options: Default::default(),
             })

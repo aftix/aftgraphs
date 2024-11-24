@@ -50,7 +50,7 @@ web-sys = { version="0.3.72", features = [
   "MessageEvent",
 ]}
 web-time = "1.0"
-wgpu = { version = "22.1", default-features = false, features = ["webgl", "spirv", "wgsl"]}
+wgpu = { version = "23.0", default-features = false, features = ["webgl", "spirv", "wgsl"]}
 winit = { version = "=0.30.5", features = ["serde"] }
 
 [package]
